@@ -4,21 +4,20 @@
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
-use core::convert::Infallible;
-use core::pin::pin;
-use core::time::Duration;
-use lilos::time::sleep_for;
+use hal::pac::Peripherals;
+use hal::prelude::*;
+use stm32f4xx_hal as hal;
 
-use stm32f4::stm32f429 as device;
+const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
     info!("Program start");
 
     let mut cp = cortex_m::Peripherals::take().unwrap();
-    let dp = device::Peripherals::take().unwrap();
+    let dp = Peripherals::take().unwrap();
 
-    // Debug probe fix
+    // Debug probe fix for RTT
     dp.RCC.apb2enr.write(|w| w.syscfgen().enabled());
     dp.DBGMCU.cr.modify(|_, w| {
         w.dbg_sleep().set_bit();
@@ -26,31 +25,35 @@ fn main() -> ! {
         w.dbg_stop().set_bit()
     });
     dp.RCC.ahb1enr.modify(|_, w| w.dma1en().enabled());
-
-    // Enable clock to GPIOD.
     dp.RCC.ahb1enr.modify(|_, w| w.gpiogen().enabled());
-    // Set pins to outputs.
+
+    let rcc = dp.RCC.constrain();
+    let _clocks = rcc
+        .cfgr
+        .use_hse(8.MHz())
+        .sysclk(168.MHz())
+        .hclk(168.MHz())
+        .pclk1(42.MHz())
+        .pclk2(84.MHz())
+        .freeze();
+
     dp.GPIOG
         .moder
         .modify(|_, w| w.moder13().output().moder14().output());
 
-    let fut1 = pin!(blinky(1 << 13, Duration::from_millis(800), &dp.GPIOG));
-    let fut2 = pin!(blinky(1 << 14, Duration::from_millis(400), &dp.GPIOG));
+    let blink = core::pin::pin!(async {
+        let mut gate = lilos::time::PeriodicGate::from(PERIOD);
 
-    lilos::time::initialize_sys_tick(&mut cp.SYST, 16_000_000);
+        loop {
+            dp.GPIOG.bsrr.write(|w| w.bs13().set_bit());
+            dp.GPIOG.bsrr.write(|w| w.br14().set_bit());
+            gate.next_time().await;
+            dp.GPIOG.bsrr.write(|w| w.br13().set_bit());
+            dp.GPIOG.bsrr.write(|w| w.bs14().set_bit());
+            gate.next_time().await;
+        }
+    });
 
-    lilos::exec::run_tasks(&mut [fut1, fut2], lilos::exec::ALL_TASKS)
-}
-
-async fn blinky(pin_mask: u16, interval: Duration, gpiog: &device::GPIOG) -> Infallible {
-    let pin_mask = u32::from(pin_mask);
-
-    loop {
-        // on
-        gpiog.bsrr.write(|w| unsafe { w.bits(pin_mask) });
-        sleep_for(interval).await;
-        // off (same bits set in top 16 bits)
-        gpiog.bsrr.write(|w| unsafe { w.bits(pin_mask << 16) });
-        sleep_for(interval).await;
-    }
+    lilos::time::initialize_sys_tick(&mut cp.SYST, 168_000_000);
+    lilos::exec::run_tasks(&mut [blink], lilos::exec::ALL_TASKS)
 }
