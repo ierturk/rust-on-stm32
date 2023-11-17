@@ -1,0 +1,15 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "probe-rs run --chip STM32F429ZITx --connect-under-reset"
+
+rustflags = [
+  "-C", "link-arg=--nmagic",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x",
+  "-C", "linker=flip-link",
+]
+
+[build]
+target = "thumbv7em-none-eabihf" # Cortex-M4F and Cortex-M7F (with FPU)
+
+[env]
+DEFMT_LOG = "trace"

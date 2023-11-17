@@ -1,0 +1,31 @@
+[package]
+authors = ["ierturk me@erturk.me>"]
+edition = "2021"
+readme = "README.md"
+name = "rust-stm32f4-disco-blinky"
+version = "0.2.0"
+
+[package.metadata.docs.rs]
+default-target = "thumbv7em-none-eabihf"
+
+[dependencies]
+cortex-m = { version = "0.7.4", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.1"
+lilos = { git = "https://github.com/cbiffle/lilos.git", rev = "66512be0e793ef9e03d57d5f49ae397acc2cc5da" }
+
+defmt = "0.3"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+cortex-m-semihosting = "0.5.0"
+
+
+[dependencies.stm32f4]
+version = "0.15.1"
+features = ["stm32f429"]
+
+
+[profile.release]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size on Flash
+lto = true # better optimizations
+opt-level = "z"
