@@ -43,9 +43,43 @@ fn main() -> ! {
         .freeze();
 
     let mut delay = dp.TIM1.delay_us(&clocks);
-
     let mut disp = TsDisp::new();
     let mut _disp = disp.sdram.init(&mut delay);
+    delay.release();
+
+    let sdram_size = 8 * 1024 * 1024;
+    let sdram_ptr = 0xD000_0000 as *mut u16;
+    let ram_slice = unsafe {
+        core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
+    };
+
+    info!("RAM contents before writing: {:x}", ram_slice[..12]);
+
+    ram_slice[0] = 1;
+    ram_slice[1] = 2;
+    ram_slice[2] = 3;
+    ram_slice[3] = 4;
+    ram_slice[4] = 5;
+    ram_slice[5] = 6;
+    ram_slice[6] = 7;
+    ram_slice[7] = 8;
+    ram_slice[8] = 9;
+    ram_slice[9] = 10;
+
+    info!("RAM contents after writing: {:x}", ram_slice[..12]);
+
+    crate::assert_eq!(ram_slice[0], 1);
+    crate::assert_eq!(ram_slice[1], 2);
+    crate::assert_eq!(ram_slice[2], 3);
+    crate::assert_eq!(ram_slice[3], 4);
+    crate::assert_eq!(ram_slice[4], 5);
+    crate::assert_eq!(ram_slice[5], 6);
+    crate::assert_eq!(ram_slice[6], 7);
+    crate::assert_eq!(ram_slice[7], 8);
+    crate::assert_eq!(ram_slice[8], 9);
+    crate::assert_eq!(ram_slice[9], 10);
+
+    info!("FMC/SDRAM module seems to be functional!");
 
     dp.GPIOG
         .moder

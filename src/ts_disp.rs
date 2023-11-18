@@ -44,8 +44,7 @@ impl Sdram {
     where
         D: DelayUs<u8>,
     {
-        // BSP_SDRAM_MspInit
-        let dp = device::take().unwrap();
+        let dp = unsafe { device::steal() };
         dp.RCC.ahb3enr.modify(|_, w| w.fmcen().enabled());
         dp.RCC.ahb1enr.modify(|_, w| w.dma2den().enabled());
 
