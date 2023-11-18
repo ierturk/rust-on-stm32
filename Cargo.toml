@@ -18,9 +18,15 @@ defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 cortex-m-semihosting = "0.5.0"
 
+embedded-hal = "0.2.7"
+
 [dependencies.stm32f4xx-hal]
 version = "0.17.1"
 features = ["stm32f429"]
+
+# [dependencies.stm32f4]
+# git = "https://github.com/stm32-rs/stm32-rs-nightlies"
+# features = ["stm32f429", "rt"]
 
 
 [profile.release]

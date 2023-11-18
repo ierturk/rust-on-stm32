@@ -33,7 +33,7 @@ fn main() -> ! {
     dp.RCC.ahb1enr.modify(|_, w| w.gpiogen().enabled());
 
     let rcc = dp.RCC.constrain();
-    let _clocks = rcc
+    let clocks = rcc
         .cfgr
         .use_hse(8.MHz())
         .sysclk(168.MHz())
@@ -41,6 +41,11 @@ fn main() -> ! {
         .pclk1(42.MHz())
         .pclk2(84.MHz())
         .freeze();
+
+    let mut delay = dp.TIM1.delay_us(&clocks);
+
+    let mut disp = TsDisp::new();
+    let mut _disp = disp.sdram.init(&mut delay);
 
     dp.GPIOG
         .moder

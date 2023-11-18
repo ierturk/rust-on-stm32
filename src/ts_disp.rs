@@ -3,6 +3,8 @@ use hal::gpio::Speed;
 use hal::pac::Peripherals as device;
 use stm32f4xx_hal as hal;
 
+use embedded_hal::blocking::delay::DelayUs;
+
 macro_rules! fmc_pins {
     ($($pin:expr),*) => {
         (
@@ -24,7 +26,7 @@ impl TsDisp {
     pub fn new() -> TsDisp {
         return TsDisp {
             ts: Ts::new(),
-            sdram: Sdram::new(),
+            sdram: Sdram {},
         };
     }
 }
@@ -38,7 +40,10 @@ impl Ts {
 
 pub struct Sdram {}
 impl Sdram {
-    pub fn new() -> Sdram {
+    pub fn init<D>(&mut self, delay: &mut D) -> Sdram
+    where
+        D: DelayUs<u8>,
+    {
         // BSP_SDRAM_MspInit
         let dp = device::take().unwrap();
         dp.RCC.ahb3enr.modify(|_, w| w.fmcen().enabled());
@@ -154,7 +159,63 @@ impl Sdram {
                 .bits(2)
         });
 
-        // dp.FMC.sdcm().modify(|_, w| w.trc().bits(7).trp().bits(2));
+        // Wait for SDRAM module is ready
+        while dp.FMC.sdsr.read().busy().bit_is_set() {}
+
+        let _ = &dp.FMC.sdcmr.modify(|_, w| {
+            w.mode()
+                .clock_configuration_enable()
+                .ctb2()
+                .set_bit()
+                .ctb1()
+                .clear_bit()
+                .nrfs()
+                .bits(1)
+                .mrd()
+                .bits(0)
+        });
+
+        delay.delay_us(100);
+
+        // Wait for SDRAM module is ready
+        while dp.FMC.sdsr.read().busy().bit_is_set() {}
+
+        let _ = &dp.FMC.sdcmr.modify(|_, w| {
+            w.mode()
+                .pall()
+                .ctb2()
+                .set_bit()
+                .ctb1()
+                .clear_bit()
+                .nrfs()
+                .bits(1)
+                .mrd()
+                .bits(0)
+        });
+
+        // Wait for SDRAM module is ready
+        while dp.FMC.sdsr.read().busy().bit_is_set() {}
+
+        let _ = &dp.FMC.sdcmr.modify(|_, w| {
+            w.mode()
+                .load_mode_register()
+                .ctb2()
+                .set_bit()
+                .ctb1()
+                .clear_bit()
+                .nrfs()
+                .bits(4)
+                .mrd()
+                .bits(0x0230)
+        });
+
+        // Wait for SDRAM module is ready
+        while dp.FMC.sdsr.read().busy().bit_is_set() {}
+
+        let _ = &dp.FMC.sdrtr.modify(|_, w| w.count().bits(1386));
+
+        // Wait for SDRAM module is ready
+        while dp.FMC.sdsr.read().busy().bit_is_set() {}
 
         return Sdram {};
     }
