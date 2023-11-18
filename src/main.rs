@@ -4,9 +4,12 @@
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
-use hal::pac::Peripherals;
+use hal::pac::Peripherals as device;
 use hal::prelude::*;
 use stm32f4xx_hal as hal;
+
+mod ts_disp;
+use ts_disp::TsDisp;
 
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
@@ -14,8 +17,10 @@ const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 fn main() -> ! {
     info!("Program start");
 
+    let _ts_disp = TsDisp::new();
+
     let mut cp = cortex_m::Peripherals::take().unwrap();
-    let dp = Peripherals::take().unwrap();
+    let dp = device::take().unwrap();
 
     // Debug probe fix for RTT
     dp.RCC.apb2enr.write(|w| w.syscfgen().enabled());
