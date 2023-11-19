@@ -1,6 +1,9 @@
 use hal::gpio::GpioExt;
 use hal::gpio::Speed;
+use hal::interrupt;
+use hal::pac::Interrupt;
 use hal::pac::Peripherals as device;
+use hal::pac::NVIC;
 use stm32f4xx_hal as hal;
 
 use embedded_hal::blocking::delay::DelayUs;
@@ -162,6 +165,13 @@ impl Sdram {
                 .clear_bit()
         });
 
+        // TODO: calculate priority for
+        // Device           : DMA2 Stream0
+        // PreemptPriority  : 0x0f
+        // SubPriority      : 0x00
+        // NVIC::set_priority(&mut self, interrupt, prio);
+        unsafe { NVIC::unmask(Interrupt::DMA2_STREAM0) };
+
         // SDRAM FMC Init
         dp.FMC
             .sdcr1()
@@ -267,4 +277,25 @@ impl Sdram {
 
         return Sdram {};
     }
+}
+
+// DMA2 Stream0 Interrupt
+#[interrupt]
+fn DMA2_STREAM0() {
+    cortex_m::interrupt::free(|_| {
+        let dma2 = unsafe { &*stm32f4xx_hal::pac::DMA2::ptr() };
+
+        dma2.lifcr.write(|w| {
+            w.cdmeif0()
+                .clear_bit()
+                .cfeif0()
+                .clear_bit()
+                .chtif0()
+                .clear_bit()
+                .ctcif0()
+                .clear_bit()
+                .cteif0()
+                .clear_bit()
+        });
+    });
 }
