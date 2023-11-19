@@ -2,7 +2,7 @@
 authors = ["ierturk me@erturk.me>"]
 edition = "2021"
 readme = "README.md"
-name = "rust-stm32f4-disco-blinky"
+name = "rust-on-stm32"
 version = "0.2.0"
 
 [package.metadata.docs.rs]

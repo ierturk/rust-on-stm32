@@ -4,7 +4,10 @@
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
+use hal::interrupt;
+use hal::pac::Interrupt;
 use hal::pac::Peripherals as device;
+use hal::pac::NVIC;
 use hal::prelude::*;
 use stm32f4xx_hal as hal;
 
@@ -90,14 +93,45 @@ fn main() -> ! {
 
         loop {
             dp.GPIOG.bsrr.write(|w| w.bs13().set_bit());
-            dp.GPIOG.bsrr.write(|w| w.br14().set_bit());
             gate.next_time().await;
             dp.GPIOG.bsrr.write(|w| w.br13().set_bit());
-            dp.GPIOG.bsrr.write(|w| w.bs14().set_bit());
             gate.next_time().await;
         }
     });
 
+    let tim6 = dp.TIM6;
+    let rcc = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
+    rcc.apb1enr.write(|w| w.tim6en().set_bit());
+    cortex_m::interrupt::free(|_| {
+        tim6.cr1.write(|w| w.cen().clear_bit());
+        tim6.psc.write(|w| w.psc().bits(21000));
+        tim6.arr.write(|w| w.arr().bits(4000));
+        tim6.egr.write(|w| w.ug().set_bit());
+        tim6.dier.write(|w| w.uie().set_bit());
+        tim6.cr1.write(|w| w.cen().set_bit());
+    });
+
+    unsafe {
+        NVIC::unmask(Interrupt::TIM6_DAC);
+    };
+
     lilos::time::initialize_sys_tick(&mut cp.SYST, 168_000_000);
     lilos::exec::run_tasks(&mut [blink], lilos::exec::ALL_TASKS)
+}
+
+// Timer Interrupt
+#[interrupt]
+fn TIM6_DAC() {
+    cortex_m::interrupt::free(|_| {
+        let gpiog = unsafe { &*stm32f4xx_hal::pac::GPIOG::ptr() };
+
+        if gpiog.odr.read().odr14().bit_is_clear() {
+            gpiog.odr.modify(|_, w| w.odr14().set_bit());
+        } else {
+            gpiog.odr.modify(|_, w| w.odr14().clear_bit());
+        }
+
+        let tim6 = unsafe { &*stm32f4xx_hal::pac::TIM6::ptr() };
+        tim6.sr.write(|w| w.uif().clear_bit());
+    });
 }
