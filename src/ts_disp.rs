@@ -114,54 +114,53 @@ impl Sdram {
             // SDNWE
             gc.pc0
         );
-        /*
-               // SDRAM DMA Init
-               // Deinit
-               let dma2_stream0 = dp.DMA2.st.get(0).unwrap();
-               dma2_stream0.cr.modify(|_, w| w.en().clear_bit());
-               dma2_stream0.cr.modify(|_, w| unsafe { w.bits(0x00) });
-               dma2_stream0.ndtr.modify(|_, w| unsafe { w.bits(0x00) });
-               dma2_stream0.par.modify(|_, w| unsafe { w.bits(0x00) });
-               dma2_stream0.m0ar.modify(|_, w| unsafe { w.bits(0x00) });
-               dma2_stream0.m1ar.modify(|_, w| unsafe { w.bits(0x00) });
-               dma2_stream0.fcr.modify(|_, w| unsafe { w.bits(0x21) });
 
-               // Init
-               // Wait for SDRAM module is ready
-               while dma2_stream0.cr.read().en().bit_is_clear() {}
+        // SDRAM DMA Init
+        // Deinit
+        let dma2_stream0 = dp.DMA2.st.get(0).unwrap();
+        dma2_stream0.cr.modify(|_, w| w.en().clear_bit());
+        dma2_stream0.cr.modify(|_, w| unsafe { w.bits(0x00) });
+        dma2_stream0.ndtr.modify(|_, w| unsafe { w.bits(0x00) });
+        dma2_stream0.par.modify(|_, w| unsafe { w.bits(0x00) });
+        dma2_stream0.m0ar.modify(|_, w| unsafe { w.bits(0x00) });
+        dma2_stream0.m1ar.modify(|_, w| unsafe { w.bits(0x00) });
+        dma2_stream0.fcr.modify(|_, w| unsafe { w.bits(0x21) });
 
-               dma2_stream0.cr.modify(|_, w| {
-                   w.chsel()
-                       .bits(0)
-                       .dir()
-                       .memory_to_memory()
-                       .pinc()
-                       .set_bit()
-                       .minc()
-                       .set_bit()
-                       .psize()
-                       .bits16()
-                       .msize()
-                       .bits16()
-                       .circ()
-                       .clear_bit()
-                       .pfctrl()
-                       .clear_bit()
-               });
+        // Init
+        // Check if the DMA Stream is effectively disabled
+        while dma2_stream0.cr.read().en().bit_is_set() {}
 
-               dp.DMA2.lifcr.write(|w| {
-                   w.cdmeif0()
-                       .clear_bit()
-                       .cfeif0()
-                       .clear_bit()
-                       .chtif0()
-                       .clear_bit()
-                       .ctcif0()
-                       .clear_bit()
-                       .cteif0()
-                       .clear_bit()
-               });
-        */
+        dma2_stream0.cr.modify(|_, w| {
+            w.chsel()
+                .bits(0)
+                .dir()
+                .memory_to_memory()
+                .pinc()
+                .set_bit()
+                .minc()
+                .set_bit()
+                .psize()
+                .bits16()
+                .msize()
+                .bits16()
+                .circ()
+                .clear_bit()
+                .pfctrl()
+                .clear_bit()
+        });
+
+        dp.DMA2.lifcr.write(|w| {
+            w.cdmeif0()
+                .clear_bit()
+                .cfeif0()
+                .clear_bit()
+                .chtif0()
+                .clear_bit()
+                .ctcif0()
+                .clear_bit()
+                .cteif0()
+                .clear_bit()
+        });
 
         // SDRAM FMC Init
         dp.FMC
