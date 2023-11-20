@@ -439,6 +439,78 @@ impl Ltdc {
         lcd_cs_high!();
 
         // LCD SPI init
+        /* SPI baudrate is set to 5.6 MHz (PCLK2/SPI_BaudRatePrescaler = 84/16 = 5.25 MHz)
+           to verify these constraints:
+           - ILI9341 LCD SPI interface max baudrate is 10MHz for write and 6.66MHz for read
+           - l3gd20 SPI interface max baudrate is 10MHz for write/read
+           - PCLK2 frequency is set to 84 MHz
+        */
+        // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MSI PF9
+        rcc.apb2enr.write(|w| w.spi5en().set_bit());
+
+        gpiof
+            .otyper
+            .modify(|_, w| w.ot7().push_pull().ot8().push_pull().ot9().push_pull());
+
+        gpiof.afrl.modify(|_, w| w.afrl7().af5());
+        gpiof.afrh.modify(|_, w| w.afrh8().af5().afrh9().af5());
+
+        gpiof.moder.modify(|_, w| {
+            w.moder7()
+                .bits(0x02)
+                .moder8()
+                .bits(0x02)
+                .moder9()
+                .bits(0x02)
+        });
+
+        gpiof.pupdr.modify(|_, w| {
+            w.pupdr7()
+                .pull_down()
+                .pupdr8()
+                .pull_down()
+                .pupdr9()
+                .pull_down()
+        });
+
+        gpiof.ospeedr.modify(|_, w| {
+            w.ospeedr7()
+                .medium_speed()
+                .ospeedr8()
+                .medium_speed()
+                .ospeedr9()
+                .medium_speed()
+        });
+
+        // SPI5 init
+        let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
+
+        spi5_dev.cr1.write(|w| {
+            w.mstr()
+                .set_bit()
+                .bidimode()
+                .clear_bit()
+                .rxonly()
+                .clear_bit()
+                .dff()
+                .sixteen_bit()
+                .cpol()
+                .idle_low()
+                .cpha()
+                .first_edge()
+                .ssm()
+                .set_bit()
+                .br()
+                .div16()
+                .lsbfirst()
+                .set_bit()
+                .crcen()
+                .disabled()
+        });
+
+        spi5_dev
+            .cr2
+            .write(|w| w.ssoe().clear_bit().frf().clear_bit());
 
         return true;
     }
