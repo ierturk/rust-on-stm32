@@ -25,7 +25,7 @@ pub struct Sdram {}
 impl Sdram {
     pub fn new<D>(delay: &mut D) -> *mut u16
     where
-        D: DelayUs<u8>,
+        D: DelayUs<u16>,
     {
         let dp = unsafe { device::steal() };
         dp.RCC.ahb3enr.modify(|_, w| w.fmcen().enabled());
@@ -237,7 +237,7 @@ impl Sdram {
                 .bits(0)
         });
 
-        delay.delay_us(100);
+        delay.delay_us(1);
 
         // Wait for SDRAM module is ready
         while dp.FMC.sdsr.read().busy().bit_is_set() {}
