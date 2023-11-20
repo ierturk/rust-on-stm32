@@ -21,29 +21,9 @@ macro_rules! fmc_pins {
     };
 }
 
-pub struct TsDisp {
-    pub ts: Ts,
-    pub sdram: Sdram,
-}
-impl TsDisp {
-    pub fn new() -> TsDisp {
-        return TsDisp {
-            ts: Ts::new(),
-            sdram: Sdram {},
-        };
-    }
-}
-
-pub struct Ts {}
-impl Ts {
-    pub fn new() -> Ts {
-        return Ts {};
-    }
-}
-
 pub struct Sdram {}
 impl Sdram {
-    pub fn init<D>(&mut self, delay: &mut D) -> Sdram
+    pub fn new<D>(delay: &mut D) -> *mut u16
     where
         D: DelayUs<u8>,
     {
@@ -275,7 +255,7 @@ impl Sdram {
         // Wait for SDRAM module is ready
         while dp.FMC.sdsr.read().busy().bit_is_set() {}
 
-        return Sdram {};
+        return 0xD000_0000 as *mut u16;
     }
 }
 

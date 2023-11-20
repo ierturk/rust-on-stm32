@@ -11,16 +11,14 @@ use hal::pac::NVIC;
 use hal::prelude::*;
 use stm32f4xx_hal as hal;
 
-mod ts_disp;
-use ts_disp::TsDisp;
+mod drivers;
+use drivers::fmc::Sdram;
 
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
     info!("Program start");
-
-    let _ts_disp = TsDisp::new();
 
     let mut cp = cortex_m::Peripherals::take().unwrap();
     let dp = device::take().unwrap();
@@ -45,13 +43,18 @@ fn main() -> ! {
         .pclk2(84.MHz())
         .freeze();
 
+    let rcc_r = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
+    info!("pllm: {}", rcc_r.pllcfgr.read().pllm().bits());
+    info!("plln: {}", rcc_r.pllcfgr.read().plln().bits());
+    info!("pllp: {}", 2 * (rcc_r.pllcfgr.read().pllp().bits() + 1));
+    info!("pllsrc: {}", rcc_r.pllcfgr.read().pllsrc().bit());
+    info!("pllq: {}", rcc_r.pllcfgr.read().pllq().bits());
+
     let mut delay = dp.TIM1.delay_us(&clocks);
-    let mut disp = TsDisp::new();
-    let mut _disp = disp.sdram.init(&mut delay);
+    let sdram_ptr = Sdram::new(&mut delay);
     delay.release();
 
     let sdram_size = 8 * 1024 * 1024;
-    let sdram_ptr = 0xD000_0000 as *mut u16;
     let ram_slice = unsafe {
         core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
     };
