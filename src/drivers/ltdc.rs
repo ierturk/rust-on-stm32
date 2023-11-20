@@ -11,6 +11,20 @@ use stm32f4xx_hal as hal;
 
 use embedded_hal::blocking::delay::DelayUs;
 
+macro_rules! lcd_wrx_high {
+    () => {
+        let gpiod = unsafe { &*stm32f4xx_hal::pac::GPIOD::ptr() };
+        gpiod.bsrr.write(|w| w.bs13().set_bit());
+    };
+}
+
+macro_rules! lcd_wrx_low {
+    () => {
+        let gpiod = unsafe { &*stm32f4xx_hal::pac::GPIOD::ptr() };
+        gpiod.bsrr.write(|w| w.br13().set_bit());
+    };
+}
+
 macro_rules! lcd_cs_high {
     () => {
         let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
@@ -22,6 +36,24 @@ macro_rules! lcd_cs_low {
     () => {
         let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
         gpioc.bsrr.write(|w| w.br2().set_bit());
+    };
+}
+
+macro_rules! spi5_send {
+    ($in:expr) => {
+        lcd_wrx_low!();
+        lcd_cs_low!();
+        let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
+
+        if spi5_dev.cr1.read().spe().bit_is_clear() {
+            spi5_dev.cr1.modify(|_, w| w.spe().set_bit());
+        }
+
+        spi5_dev.dr.write(|w| unsafe { w.bits($in) });
+
+        while spi5_dev.sr.read().bsy().bit_is_set() || spi5_dev.sr.read().txe().bit_is_clear() {}
+
+        lcd_cs_high!();
     };
 }
 
@@ -50,8 +82,8 @@ impl Ltdc {
                  -----------------------------------------------------
         */
 
-        rcc.apb2enr.write(|w| w.ltdcen().set_bit());
-        rcc.ahb1enr.write(|w| {
+        rcc.apb2enr.modify(|_, w| w.ltdcen().set_bit());
+        rcc.ahb1enr.modify(|_, w| {
             w.dma2den()
                 .set_bit()
                 .gpioaen()
@@ -368,14 +400,15 @@ impl Ltdc {
         // PLLSAI_VCO Output = PLLSAI_VCO Input * PLLSAIN = 192 Mhz
         // PLLLCDCLK = PLLSAI_VCO Output/PLLSAIR = 192/4 = 48 Mhz */
         // LTDC clock frequency = PLLLCDCLK / LTDC_PLLSAI_DIVR_8 = 48/8 = 6Mhz
-        rcc.cr.write(|w| w.pllsaion().clear_bit());
+        rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         while rcc.cr.read().pllsairdy().bit_is_set() {}
-        rcc.cr.write(|w| w.pllsaion().clear_bit());
+        rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
-            .write(|w| unsafe { w.pllsain().bits(96).pllsaiq().bits(4).pllsair().bits(8) });
-        rcc.cr.write(|w| w.pllsaion().set_bit());
+            .modify(|_, w| unsafe { w.pllsain().bits(96).pllsaiq().bits(4).pllsair().bits(8) });
+        rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
-        info!("LTDC Clock config is OK!");
+
+        // info!("LTDC Clock config is OK!");
 
         // LTDC config
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
@@ -446,7 +479,7 @@ impl Ltdc {
            - PCLK2 frequency is set to 84 MHz
         */
         // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MSI PF9
-        rcc.apb2enr.write(|w| w.spi5en().set_bit());
+        rcc.apb2enr.modify(|_, w| w.spi5en().set_bit());
 
         gpiof
             .otyper
@@ -485,32 +518,25 @@ impl Ltdc {
         // SPI5 init
         let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
 
-        spi5_dev.cr1.write(|w| {
+        spi5_dev.cr1.modify(|_, w| {
             w.mstr()
                 .set_bit()
-                .bidimode()
-                .clear_bit()
-                .rxonly()
-                .clear_bit()
                 .dff()
-                .sixteen_bit()
+                .eight_bit()
                 .cpol()
                 .idle_low()
                 .cpha()
                 .first_edge()
-                .ssm()
-                .set_bit()
                 .br()
                 .div16()
-                .lsbfirst()
+                .ssi()
                 .set_bit()
-                .crcen()
-                .disabled()
+                .ssm()
+                .set_bit()
         });
 
-        spi5_dev
-            .cr2
-            .write(|w| w.ssoe().clear_bit().frf().clear_bit());
+        spi5_send!(0x55);
+        info!("LCD SP5 seems to be functional!");
 
         return true;
     }

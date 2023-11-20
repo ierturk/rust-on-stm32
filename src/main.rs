@@ -44,12 +44,14 @@ fn main() -> ! {
         .pclk2(84.MHz())
         .freeze();
 
-    let rcc_r = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
-    info!("pllm: {}", rcc_r.pllcfgr.read().pllm().bits());
-    info!("plln: {}", rcc_r.pllcfgr.read().plln().bits());
-    info!("pllp: {}", 2 * (rcc_r.pllcfgr.read().pllp().bits() + 1));
-    info!("pllsrc: {}", rcc_r.pllcfgr.read().pllsrc().bit());
-    info!("pllq: {}", rcc_r.pllcfgr.read().pllq().bits());
+    /*
+       let rcc_r = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
+       info!("pllm: {}", rcc_r.pllcfgr.read().pllm().bits());
+       info!("plln: {}", rcc_r.pllcfgr.read().plln().bits());
+       info!("pllp: {}", 2 * (rcc_r.pllcfgr.read().pllp().bits() + 1));
+       info!("pllsrc: {}", rcc_r.pllcfgr.read().pllsrc().bit());
+       info!("pllq: {}", rcc_r.pllcfgr.read().pllq().bits());
+    */
 
     let mut delay = dp.TIM1.delay_us(&clocks);
     let sdram_ptr = Sdram::new(&mut delay);
