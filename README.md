@@ -1,4 +1,4 @@
-# Blinky example in Rust Embassy Async RTOS on the STM32F429-Discovery board with probe-rs on VSCode
+# An Application in Rust Lilos Async RTOS on the STM32F429-Discovery board with probe-rs on VSCode
 
 [Associated post](https://erturk.me/projects/working-with-rust-embedded-on-wsl/)
 
