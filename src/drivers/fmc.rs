@@ -31,6 +31,30 @@ impl Sdram {
         dp.RCC.ahb3enr.modify(|_, w| w.fmcen().enabled());
         dp.RCC.ahb1enr.modify(|_, w| w.dma2den().enabled());
 
+        /*-- GPIOs Configuration -----------------------------------------------------*/
+        /*
+         +-------------------+--------------------+--------------------+--------------------+
+         +                       SDRAM pins assignment                                      +
+         +-------------------+--------------------+--------------------+--------------------+
+         | PD0  <-> FMC_D2   | PE0  <-> FMC_NBL0  | PF0  <-> FMC_A0    | PG0  <-> FMC_A10   |
+         | PD1  <-> FMC_D3   | PE1  <-> FMC_NBL1  | PF1  <-> FMC_A1    | PG1  <-> FMC_A11   |
+         | PD8  <-> FMC_D13  | PE7  <-> FMC_D4    | PF2  <-> FMC_A2    | PG8  <-> FMC_SDCLK |
+         | PD9  <-> FMC_D14  | PE8  <-> FMC_D5    | PF3  <-> FMC_A3    | PG15 <-> FMC_NCAS  |
+         | PD10 <-> FMC_D15  | PE9  <-> FMC_D6    | PF4  <-> FMC_A4    |--------------------+
+         | PD14 <-> FMC_D0   | PE10 <-> FMC_D7    | PF5  <-> FMC_A5    |
+         | PD15 <-> FMC_D1   | PE11 <-> FMC_D8    | PF11 <-> FMC_NRAS  |
+         +-------------------| PE12 <-> FMC_D9    | PF12 <-> FMC_A6    |
+                             | PE13 <-> FMC_D10   | PF13 <-> FMC_A7    |
+                             | PE14 <-> FMC_D11   | PF14 <-> FMC_A8    |
+                             | PE15 <-> FMC_D12   | PF15 <-> FMC_A9    |
+         +-------------------+--------------------+--------------------+
+         | PB5 <-> FMC_SDCKE1|
+         | PB6 <-> FMC_SDNE1 |
+         | PC0 <-> FMC_SDNWE |
+         +-------------------+
+
+        */
+
         // SDRAM GPIO Init
         dp.RCC.ahb1enr.modify(|_, w| w.gpioben().enabled());
         dp.RCC.ahb1enr.modify(|_, w| w.gpiocen().enabled());
