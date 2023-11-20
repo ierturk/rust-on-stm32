@@ -1,5 +1,3 @@
-use core::borrow::BorrowMut;
-
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -12,6 +10,20 @@ use hal::pac::NVIC;
 use stm32f4xx_hal as hal;
 
 use embedded_hal::blocking::delay::DelayUs;
+
+macro_rules! lcd_cs_high {
+    () => {
+        let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
+        gpioc.bsrr.write(|w| w.bs2().set_bit());
+    };
+}
+
+macro_rules! lcd_cs_low {
+    () => {
+        let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
+        gpioc.bsrr.write(|w| w.br2().set_bit());
+    };
+}
 
 pub struct Ltdc {}
 impl Ltdc {
@@ -363,9 +375,114 @@ impl Ltdc {
             .write(|w| unsafe { w.pllsain().bits(96).pllsaiq().bits(4).pllsair().bits(8) });
         rcc.cr.write(|w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
-
         info!("LTDC Clock config is OK!");
+
+        // LTDC config
+        let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
+
+        ltd_dev.gcr.modify(|_, w| {
+            w.hspol()
+                .active_low()
+                .vspol()
+                .active_low()
+                .hspol()
+                .active_low()
+                .pcpol()
+                .rising_edge()
+        });
+
+        ltd_dev.sscr.modify(|_, w| w.hsw().bits(9).vsh().bits(1));
+        ltd_dev.bpcr.modify(|_, w| w.ahbp().bits(29).avbp().bits(3));
+        ltd_dev
+            .awcr
+            .modify(|_, w| w.aaw().bits(269).aah().bits(323));
+        ltd_dev
+            .twcr
+            .modify(|_, w| w.totalw().bits(279).totalh().bits(320));
+        ltd_dev
+            .bccr
+            .modify(|_, w| w.bcred().bits(0).bcgreen().bits(0).bcblue().bits(0));
+
+        ltd_dev
+            .ier
+            .modify(|_, w| w.fuie().enabled().terrie().enabled());
+
+        ltd_dev.gcr.modify(|_, w| w.ltdcen().enabled());
+
+        // unsafe { NVIC::unmask(Interrupt::LCD_TFT) };
+        // unsafe { NVIC::unmask(Interrupt::LCD_TFT_1) };
+        // unsafe { NVIC::unmask(Interrupt::DMA2D) };
+
+        // ILI931 LCD IO init
+        // GPIO init
+        // GPIOD is already enabled
+        // LCD RDX PD12
+        // LCD WRX PD 13
+        gpiod
+            .otyper
+            .modify(|_, w| w.ot12().push_pull().ot13().push_pull());
+        gpiod
+            .pupdr
+            .modify(|_, w| w.pupdr12().floating().pupdr12().floating());
+        gpiod.ospeedr.modify(|_, w| {
+            w.ospeedr12()
+                .very_high_speed()
+                .ospeedr13()
+                .very_high_speed()
+        });
+        // LCD NCS PC2
+        gpioc.otyper.modify(|_, w| w.ot2().push_pull());
+        gpioc.pupdr.modify(|_, w| w.pupdr2().floating());
+        gpioc.ospeedr.modify(|_, w| w.ospeedr2().very_high_speed());
+
+        lcd_cs_low!();
+        lcd_cs_high!();
+
+        // LCD SPI init
 
         return true;
     }
+}
+
+#[interrupt]
+fn LCD_TFT() {
+    cortex_m::interrupt::free(|_| {
+        let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
+
+        if ltd_dev.isr.read().terrif().bit_is_set() && ltd_dev.ier.read().terrie().bit_is_set() {
+            ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
+            ltd_dev.icr.write(|w| w.cterrif().set_bit());
+        }
+
+        if ltd_dev.isr.read().fuif().bit_is_set() && ltd_dev.ier.read().fuie().bit_is_set() {
+            ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
+            ltd_dev.icr.write(|w| w.cfuif().set_bit());
+        }
+
+        if ltd_dev.isr.read().lif().bit_is_set() && ltd_dev.ier.read().lie().bit_is_set() {
+            ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
+            ltd_dev.icr.write(|w| w.clif().set_bit());
+        }
+
+        if ltd_dev.isr.read().rrif().bit_is_set() && ltd_dev.ier.read().rrie().bit_is_set() {
+            ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
+            ltd_dev.icr.write(|w| w.crrif().set_bit());
+        }
+    });
+}
+
+#[interrupt]
+fn LCD_TFT_1() {
+    cortex_m::interrupt::free(|_| {
+        let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
+
+        if ltd_dev.isr.read().fuif().is_underrun() {
+            ltd_dev.icr.write(|w| w.cfuif().set_bit())
+        }
+    });
+}
+
+#[interrupt]
+fn DMA2D() {
+    cortex_m::interrupt::free(|_| {});
 }
