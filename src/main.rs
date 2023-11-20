@@ -13,6 +13,7 @@ use stm32f4xx_hal as hal;
 
 mod drivers;
 use drivers::fmc::Sdram;
+use drivers::ltdc::Ltdc;
 
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
@@ -52,6 +53,7 @@ fn main() -> ! {
 
     let mut delay = dp.TIM1.delay_us(&clocks);
     let sdram_ptr = Sdram::new(&mut delay);
+    let _ltdc_ok = Ltdc::new(&mut delay);
     delay.release();
 
     let sdram_size = 8 * 1024 * 1024;
