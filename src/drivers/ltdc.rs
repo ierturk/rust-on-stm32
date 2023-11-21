@@ -42,14 +42,14 @@ macro_rules! lcd_cs_low {
 macro_rules! spi5_tx {
     ($in:expr, $del:expr) => {
         lcd_cs_low!();
-        $del.delay_us(10_000);
+        $del.delay_us(200);
         let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
         if spi5_dev.cr1.read().spe().bit_is_clear() {
             spi5_dev.cr1.modify(|_, w| w.spe().set_bit());
         }
         spi5_dev.dr.write(|w| unsafe { w.bits($in) });
         while spi5_dev.sr.read().bsy().bit_is_set() || spi5_dev.sr.read().txe().bit_is_clear() {}
-        $del.delay_us(10_000);
+        $del.delay_us(200);
         lcd_cs_high!();
     };
 }
@@ -361,12 +361,11 @@ impl Ltdc {
         while rcc.cr.read().pllsairdy().bit_is_set() {}
         rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
-            .modify(|_, w| unsafe { w.pllsain().bits(96).pllsaiq().bits(4).pllsair().bits(8) });
+            .modify(|_, w| unsafe { w.pllsain().bits(48).pllsaiq().bits(5).pllsair().bits(4) });
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 
-        info!("LTDC Clock config is OK!");
-
+        // LTDC config
         // LTDC config
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
 
@@ -375,7 +374,7 @@ impl Ltdc {
                 .active_low()
                 .vspol()
                 .active_low()
-                .hspol()
+                .depol()
                 .active_low()
                 .pcpol()
                 .rising_edge()
@@ -388,20 +387,36 @@ impl Ltdc {
             .modify(|_, w| w.aaw().bits(269).aah().bits(323));
         ltd_dev
             .twcr
-            .modify(|_, w| w.totalw().bits(279).totalh().bits(320));
+            .modify(|_, w| w.totalw().bits(279).totalh().bits(327));
         ltd_dev
             .bccr
-            .modify(|_, w| w.bcred().bits(0).bcgreen().bits(0).bcblue().bits(0));
+            .modify(|_, w| w.bcred().bits(128).bcgreen().bits(0).bcblue().bits(0));
+
+        ltd_dev.ier.modify(|_, w| {
+            w.fuie()
+                .enabled()
+                .terrie()
+                .enabled()
+                .rrie()
+                .enabled()
+                .lie()
+                .enabled()
+        });
 
         ltd_dev
-            .ier
-            .modify(|_, w| w.fuie().enabled().terrie().enabled());
+            .gcr
+            .modify(|r, w| unsafe { w.bits(r.bits() | 0x2220) });
+
+        ltd_dev.gcr.modify(|_, w| w.den().enabled());
 
         ltd_dev.gcr.modify(|_, w| w.ltdcen().enabled());
 
         unsafe { NVIC::unmask(Interrupt::LCD_TFT) };
         unsafe { NVIC::unmask(Interrupt::LCD_TFT_1) };
         // unsafe { NVIC::unmask(Interrupt::DMA2D) };
+
+        info!("LTDC configured!");
+        // delay.delay_us(5000_000);
 
         // ILI931 LCD IO init
         // GPIO init
@@ -484,6 +499,7 @@ impl Ltdc {
         });
 
         info!("LCD SP5 seems to be functional!");
+        // delay.delay_us(5000_000);
 
         // Configure LCD
         LCD_IO_WriteReg!(0xCA, delay);
@@ -541,13 +557,13 @@ impl Ltdc {
         LCD_IO_WriteData!(0x27, delay);
         LCD_IO_WriteData!(0x04, delay);
 
-        /* Colomn address set */
+        // Colomn address set
         LCD_IO_WriteReg!(0x2a, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0xEF, delay);
-        /* Page address set */
+        // Page address set
         LCD_IO_WriteReg!(0x2b, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
@@ -601,71 +617,76 @@ impl Ltdc {
         delay.delay_us(200_000);
 
         LCD_IO_WriteReg!(0x29, delay);
-        /* GRAM start writing */
+        // GRAM start writing
         LCD_IO_WriteReg!(0x2c, delay);
+        // delay.delay_us(5000_000);
 
         // Layer Config
         // Taken hard coded
+        /*
+               // Horizontal start
+               ltd_dev
+                   .layer1
+                   .whpcr
+                   .modify(|_, w| w.whsppos().bits(320).whstpos().bits(0x00));
 
-        // Horizontal start
-        ltd_dev
-            .layer1
-            .whpcr
-            .modify(|_, w| w.whsppos().bits(0x00).whstpos().bits(0x00));
+               // Vertical start
+               ltd_dev
+                   .layer1
+                   .wvpcr
+                   .modify(|_, w| w.wvsppos().bits(240).wvstpos().bits(0x00));
 
-        // Vertical start
-        ltd_dev
-            .layer1
-            .wvpcr
-            .modify(|_, w| w.wvsppos().bits(0x00).wvstpos().bits(0x00));
+               // Pixel format
+               ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x01));
 
-        // Pixel format
-        ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x00));
+               // Default colours
+               ltd_dev.layer1.dccr.modify(|_, w| {
+                   w.dcalpha()
+                       .bits(0x00)
+                       .dcred()
+                       .bits(0x00)
+                       .dcgreen()
+                       .bits(0x00)
+                       .dcblue()
+                       .bits(0x00)
+               });
 
-        // Default colours
-        ltd_dev.layer1.dccr.modify(|_, w| {
-            w.dcalpha()
-                .bits(0x00)
-                .dcred()
-                .bits(0x00)
-                .dcgreen()
-                .bits(0x00)
-                .dcblue()
-                .bits(0x00)
-        });
+               // Specifies the constant alpha value
+               ltd_dev.layer1.cacr.modify(|_, w| w.consta().bits(0xff));
 
-        // Specifies the constant alpha value
-        ltd_dev.layer1.cacr.modify(|_, w| w.consta().bits(0xff));
+               // Specifies the blending factors
+               ltd_dev
+                   .layer1
+                   .bfcr
+                   .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
 
-        // Specifies the blending factors
-        ltd_dev
-            .layer1
-            .bfcr
-            .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
+               // Configure the color frame buffer start address
+               ltd_dev
+                   .layer1
+                   .cfbar
+                   .modify(|_, w| w.cfbadd().bits(0xD000_0000));
 
-        // Configure the color frame buffer start address
-        ltd_dev.layer1.cfbar.modify(|_, w| w.cfbadd().bits(0x00));
+               // Configure the color frame buffer pitch in byte
+               ltd_dev
+                   .layer1
+                   .cfblr
+                   .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
 
-        // Configure the color frame buffer pitch in byte
-        ltd_dev
-            .layer1
-            .cfblr
-            .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
+               // Configure the frame buffer line number
+               ltd_dev
+                   .layer1
+                   .cfblnr
+                   .modify(|_, w| w.cfblnbr().bits(0x0140));
 
-        // Configure the frame buffer line number
-        ltd_dev
-            .layer1
-            .cfblnr
-            .modify(|_, w| w.cfblnbr().bits(0x0140));
+               // Enable LTDC_Layer by setting LEN bit
+               // ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
 
-        // Enable LTDC_Layer by setting LEN bit
-        ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
+               // Set the Immediate Reload
+               ltd_dev.srcr.modify(|_, w| w.imr().set_bit());
 
-        // Set the Immediate Reload
-        ltd_dev.srcr.modify(|_, w| w.imr().set_bit());
-
-        // Enable dither
-        ltd_dev.gcr.modify(|_, w| w.den().set_bit());
+               // Enable dither
+               ltd_dev.gcr.modify(|_, w| w.den().set_bit());
+        */
 
         return true;
     }
@@ -677,22 +698,22 @@ fn LCD_TFT() {
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
 
         if ltd_dev.isr.read().terrif().bit_is_set() && ltd_dev.ier.read().terrie().bit_is_set() {
-            ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
+            // ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
             ltd_dev.icr.write(|w| w.cterrif().set_bit());
         }
 
         if ltd_dev.isr.read().fuif().bit_is_set() && ltd_dev.ier.read().fuie().bit_is_set() {
-            ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
+            // ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
             ltd_dev.icr.write(|w| w.cfuif().set_bit());
         }
 
         if ltd_dev.isr.read().lif().bit_is_set() && ltd_dev.ier.read().lie().bit_is_set() {
-            ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
+            // ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
             ltd_dev.icr.write(|w| w.clif().set_bit());
         }
 
         if ltd_dev.isr.read().rrif().bit_is_set() && ltd_dev.ier.read().rrie().bit_is_set() {
-            ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
+            // ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
             ltd_dev.icr.write(|w| w.crrif().set_bit());
         }
     });
@@ -703,9 +724,25 @@ fn LCD_TFT_1() {
     cortex_m::interrupt::free(|_| {
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
 
-        if ltd_dev.isr.read().fuif().is_underrun() {
-            ltd_dev.icr.write(|w| w.cfuif().set_bit())
+        if ltd_dev.isr.read().terrif().bit_is_set() && ltd_dev.ier.read().terrie().bit_is_set() {
+            // ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
+            ltd_dev.icr.write(|w| w.cterrif().set_bit());
         }
+
+        if ltd_dev.isr.read().fuif().bit_is_set() && ltd_dev.ier.read().fuie().bit_is_set() {
+            // ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
+            ltd_dev.icr.write(|w| w.cfuif().set_bit());
+        }
+
+        if ltd_dev.isr.read().lif().bit_is_set() && ltd_dev.ier.read().lie().bit_is_set() {
+            // ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
+            ltd_dev.icr.write(|w| w.clif().set_bit());
+        }
+
+        if ltd_dev.isr.read().rrif().bit_is_set() && ltd_dev.ier.read().rrie().bit_is_set() {
+            // ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
+            ltd_dev.icr.write(|w| w.crrif().set_bit());
+        };
     });
 }
 

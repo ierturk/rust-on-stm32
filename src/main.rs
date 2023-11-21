@@ -15,6 +15,12 @@ mod drivers;
 use drivers::fmc::Sdram;
 use drivers::ltdc::Ltdc;
 
+use stm32f4xx_hal::{
+    pac::{self},
+    prelude::*,
+    spi::{Mode, Phase, Polarity, Spi},
+};
+
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
 #[cortex_m_rt::entry]
@@ -44,52 +50,30 @@ fn main() -> ! {
         .pclk2(84.MHz())
         .freeze();
 
-    /*
-       let rcc_r = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
-       info!("pllm: {}", rcc_r.pllcfgr.read().pllm().bits());
-       info!("plln: {}", rcc_r.pllcfgr.read().plln().bits());
-       info!("pllp: {}", 2 * (rcc_r.pllcfgr.read().pllp().bits() + 1));
-       info!("pllsrc: {}", rcc_r.pllcfgr.read().pllsrc().bit());
-       info!("pllq: {}", rcc_r.pllcfgr.read().pllq().bits());
-    */
-
     let mut delay = dp.TIM1.delay_us(&clocks);
-    let sdram_ptr = Sdram::new(&mut delay);
-    let _ltdc_ok = Ltdc::new(&mut delay);
-    delay.release();
 
-    let sdram_size = 8 * 1024 * 1024;
+    // Init and test FMC/SDRAM that start at 0xD000_0000
+    let sdram_ptr = Sdram::new(&mut delay);
+    let sdram_size = 8 * 1024 * 1024; // 8MiB
     let ram_slice = unsafe {
         core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
     };
+    /*
+       for n in 0..ram_slice.len() {
+           ram_slice[n] = n as u16;
+       }
 
-    info!("RAM contents before writing: {:x}", ram_slice[..12]);
-
-    ram_slice[0] = 1;
-    ram_slice[1] = 2;
-    ram_slice[2] = 3;
-    ram_slice[3] = 4;
-    ram_slice[4] = 5;
-    ram_slice[5] = 6;
-    ram_slice[6] = 7;
-    ram_slice[7] = 8;
-    ram_slice[8] = 9;
-    ram_slice[9] = 10;
-
-    info!("RAM contents after writing: {:x}", ram_slice[..12]);
-
-    crate::assert_eq!(ram_slice[0], 1);
-    crate::assert_eq!(ram_slice[1], 2);
-    crate::assert_eq!(ram_slice[2], 3);
-    crate::assert_eq!(ram_slice[3], 4);
-    crate::assert_eq!(ram_slice[4], 5);
-    crate::assert_eq!(ram_slice[5], 6);
-    crate::assert_eq!(ram_slice[6], 7);
-    crate::assert_eq!(ram_slice[7], 8);
-    crate::assert_eq!(ram_slice[8], 9);
-    crate::assert_eq!(ram_slice[9], 10);
-
+       for n in 0..ram_slice.len() {
+           crate::assert_eq!(ram_slice[n], n as u16);
+       }
+    */
     info!("FMC/SDRAM module seems to be functional!");
+    ram_slice.fill(0xffff);
+
+    // Init LCD/LTDC Display
+    let _ltdc_ok = Ltdc::new(&mut delay);
+
+    delay.release();
 
     dp.GPIOG
         .moder

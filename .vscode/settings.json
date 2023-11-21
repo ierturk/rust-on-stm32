@@ -23,4 +23,5 @@
     // "example/rust-on-stm32f4/Cargo.toml",
     // "crates/stm32f4-extra/Cargo.toml"
   ],
+  "lldb.displayFormat": "hex",
 }
