@@ -390,7 +390,7 @@ impl Ltdc {
             .modify(|_, w| w.totalw().bits(279).totalh().bits(327));
         ltd_dev
             .bccr
-            .modify(|_, w| w.bcred().bits(128).bcgreen().bits(0).bcblue().bits(0));
+            .modify(|_, w| w.bcred().bits(0).bcgreen().bits(0).bcblue().bits(0));
 
         ltd_dev.ier.modify(|_, w| {
             w.fuie()
@@ -623,70 +623,69 @@ impl Ltdc {
 
         // Layer Config
         // Taken hard coded
-        /*
-               // Horizontal start
-               ltd_dev
-                   .layer1
-                   .whpcr
-                   .modify(|_, w| w.whsppos().bits(320).whstpos().bits(0x00));
 
-               // Vertical start
-               ltd_dev
-                   .layer1
-                   .wvpcr
-                   .modify(|_, w| w.wvsppos().bits(240).wvstpos().bits(0x00));
+        // Horizontal start
+        ltd_dev
+            .layer1
+            .whpcr
+            .modify(|_, w| w.whsppos().bits(0x010d).whstpos().bits(0x1e));
 
-               // Pixel format
-               ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x01));
+        // Vertical start
+        ltd_dev
+            .layer1
+            .wvpcr
+            .modify(|_, w| w.wvsppos().bits(0x0143).wvstpos().bits(0x04));
 
-               // Default colours
-               ltd_dev.layer1.dccr.modify(|_, w| {
-                   w.dcalpha()
-                       .bits(0x00)
-                       .dcred()
-                       .bits(0x00)
-                       .dcgreen()
-                       .bits(0x00)
-                       .dcblue()
-                       .bits(0x00)
-               });
+        // Pixel format
+        ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x01));
 
-               // Specifies the constant alpha value
-               ltd_dev.layer1.cacr.modify(|_, w| w.consta().bits(0xff));
+        // Default colours
+        ltd_dev.layer1.dccr.modify(|_, w| {
+            w.dcalpha()
+                .bits(0x00)
+                .dcred()
+                .bits(0x00)
+                .dcgreen()
+                .bits(0x00)
+                .dcblue()
+                .bits(0x00)
+        });
 
-               // Specifies the blending factors
-               ltd_dev
-                   .layer1
-                   .bfcr
-                   .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
+        // Specifies the constant alpha value
+        ltd_dev.layer1.cacr.modify(|_, w| w.consta().bits(0xff));
 
-               // Configure the color frame buffer start address
-               ltd_dev
-                   .layer1
-                   .cfbar
-                   .modify(|_, w| w.cfbadd().bits(0xD000_0000));
+        // Specifies the blending factors
+        ltd_dev
+            .layer1
+            .bfcr
+            .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
 
-               // Configure the color frame buffer pitch in byte
-               ltd_dev
-                   .layer1
-                   .cfblr
-                   .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
+        // Configure the color frame buffer start address
+        ltd_dev
+            .layer1
+            .cfbar
+            .modify(|_, w| w.cfbadd().bits(0xD000_0000));
 
-               // Configure the frame buffer line number
-               ltd_dev
-                   .layer1
-                   .cfblnr
-                   .modify(|_, w| w.cfblnbr().bits(0x0140));
+        // Configure the color frame buffer pitch in byte
+        ltd_dev
+            .layer1
+            .cfblr
+            .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
 
-               // Enable LTDC_Layer by setting LEN bit
-               // ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
+        // Configure the frame buffer line number
+        ltd_dev
+            .layer1
+            .cfblnr
+            .modify(|_, w| w.cfblnbr().bits(0x0140));
 
-               // Set the Immediate Reload
-               ltd_dev.srcr.modify(|_, w| w.imr().set_bit());
+        // Enable LTDC_Layer by setting LEN bit
+        ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
 
-               // Enable dither
-               ltd_dev.gcr.modify(|_, w| w.den().set_bit());
-        */
+        // Set the Immediate Reload
+        ltd_dev.srcr.modify(|_, w| w.imr().set_bit());
+
+        // Enable dither
+        ltd_dev.gcr.modify(|_, w| w.den().set_bit());
 
         return true;
     }

@@ -68,7 +68,7 @@ fn main() -> ! {
        }
     */
     info!("FMC/SDRAM module seems to be functional!");
-    ram_slice.fill(0xffff);
+    ram_slice.fill(0x0000);
 
     // Init LCD/LTDC Display
     let _ltdc_ok = Ltdc::new(&mut delay);
