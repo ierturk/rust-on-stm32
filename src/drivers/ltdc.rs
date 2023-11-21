@@ -109,6 +109,13 @@ impl Ltdc {
                 .set_bit()
         });
 
+        let gpioa = unsafe { &*stm32f4xx_hal::pac::GPIOA::ptr() };
+        let gpiob = unsafe { &*stm32f4xx_hal::pac::GPIOB::ptr() };
+        let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
+        let gpiod = unsafe { &*stm32f4xx_hal::pac::GPIOD::ptr() };
+        let gpiof = unsafe { &*stm32f4xx_hal::pac::GPIOF::ptr() };
+        let gpiog = unsafe { &*stm32f4xx_hal::pac::GPIOG::ptr() };
+
         /*
                 #[rustfmt::skip]
                 let _ = ltdc_pins!(
@@ -145,7 +152,20 @@ impl Ltdc {
         */
 
         // PA 3, 4, 6, 11, 12
-        let gpioa = unsafe { &*stm32f4xx_hal::pac::GPIOA::ptr() };
+
+        gpioa.moder.modify(|_, w| {
+            w.moder3()
+                .alternate()
+                .moder4()
+                .alternate()
+                .moder6()
+                .alternate()
+                .moder11()
+                .alternate()
+                .moder12()
+                .alternate()
+        });
+
         gpioa.otyper.modify(|_, w| {
             w.ot3()
                 .push_pull()
@@ -164,32 +184,6 @@ impl Ltdc {
             .modify(|_, w| w.afrl3().af14().afrl4().af14().afrl6().af14());
         gpioa.afrh.modify(|_, w| w.afrh11().af14().afrh12().af14());
 
-        gpioa.moder.modify(|_, w| {
-            w.moder3()
-                .bits(0x02)
-                .moder4()
-                .bits(0x02)
-                .moder5()
-                .bits(0x02)
-                .moder11()
-                .bits(0x02)
-                .moder12()
-                .bits(0x02)
-        });
-
-        gpioa.pupdr.modify(|_, w| {
-            w.pupdr3()
-                .floating()
-                .pupdr4()
-                .floating()
-                .pupdr6()
-                .floating()
-                .pupdr11()
-                .floating()
-                .pupdr12()
-                .floating()
-        });
-
         gpioa.ospeedr.modify(|_, w| {
             w.ospeedr3()
                 .very_high_speed()
@@ -204,7 +198,22 @@ impl Ltdc {
         });
 
         // PB 0, 1, 8, 9, 10, 11
-        let gpiob = unsafe { &*stm32f4xx_hal::pac::GPIOB::ptr() };
+
+        gpiob.moder.modify(|_, w| {
+            w.moder0()
+                .alternate()
+                .moder1()
+                .alternate()
+                .moder8()
+                .alternate()
+                .moder9()
+                .alternate()
+                .moder10()
+                .alternate()
+                .moder11()
+                .alternate()
+        });
+
         gpiob.otyper.modify(|_, w| {
             w.ot0()
                 .push_pull()
@@ -232,36 +241,6 @@ impl Ltdc {
                 .af14()
         });
 
-        gpiob.moder.modify(|_, w| {
-            w.moder0()
-                .bits(0x02)
-                .moder1()
-                .bits(0x02)
-                .moder8()
-                .bits(0x02)
-                .moder9()
-                .bits(0x02)
-                .moder10()
-                .bits(0x02)
-                .moder11()
-                .bits(0x02)
-        });
-
-        gpiob.pupdr.modify(|_, w| {
-            w.pupdr0()
-                .floating()
-                .pupdr1()
-                .floating()
-                .pupdr8()
-                .floating()
-                .pupdr9()
-                .floating()
-                .pupdr10()
-                .floating()
-                .pupdr11()
-                .floating()
-        });
-
         gpiob.ospeedr.modify(|_, w| {
             w.ospeedr0()
                 .very_high_speed()
@@ -278,31 +257,20 @@ impl Ltdc {
         });
 
         // PC 6, 7, 10
-        let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
+        gpioc.moder.modify(|_, w| {
+            w.moder6()
+                .alternate()
+                .moder7()
+                .alternate()
+                .moder10()
+                .alternate()
+        });
         gpioc
             .otyper
             .modify(|_, w| w.ot6().push_pull().ot7().push_pull().ot10().push_pull());
 
         gpioc.afrl.modify(|_, w| w.afrl6().af14().afrl7().af14());
         gpioc.afrh.modify(|_, w| w.afrh10().af14());
-
-        gpioc.moder.modify(|_, w| {
-            w.moder6()
-                .bits(0x02)
-                .moder7()
-                .bits(0x02)
-                .moder10()
-                .bits(0x02)
-        });
-
-        gpioc.pupdr.modify(|_, w| {
-            w.pupdr6()
-                .floating()
-                .pupdr7()
-                .floating()
-                .pupdr10()
-                .floating()
-        });
 
         gpioc.ospeedr.modify(|_, w| {
             w.ospeedr6()
@@ -314,7 +282,10 @@ impl Ltdc {
         });
 
         // PD 3, 6
-        let gpiod = unsafe { &*stm32f4xx_hal::pac::GPIOD::ptr() };
+        gpiod
+            .moder
+            .modify(|_, w| w.moder3().alternate().moder6().alternate());
+
         gpiod
             .otyper
             .modify(|_, w| w.ot3().push_pull().ot6().push_pull());
@@ -322,31 +293,32 @@ impl Ltdc {
         gpiod.afrl.modify(|_, w| w.afrl3().af14().afrl6().af14());
 
         gpiod
-            .moder
-            .modify(|_, w| w.moder3().bits(0x02).moder6().bits(0x02));
-
-        gpiod
-            .pupdr
-            .modify(|_, w| w.pupdr3().floating().pupdr6().floating());
-
-        gpiod
             .ospeedr
             .modify(|_, w| w.ospeedr3().very_high_speed().ospeedr6().very_high_speed());
 
         // PF 10
-        let gpiof = unsafe { &*stm32f4xx_hal::pac::GPIOF::ptr() };
+        gpiof.moder.modify(|_, w| w.moder10().bits(0x02));
+
         gpiof.otyper.modify(|_, w| w.ot10().push_pull());
 
         gpiof.afrh.modify(|_, w| w.afrh10().af14());
 
-        gpiof.moder.modify(|_, w| w.moder10().bits(0x02));
-
-        gpiof.pupdr.modify(|_, w| w.pupdr10().floating());
-
         gpiof.ospeedr.modify(|_, w| w.ospeedr10().very_high_speed());
 
         // PG 6, 7, 10, 11, 12
-        let gpiog = unsafe { &*stm32f4xx_hal::pac::GPIOG::ptr() };
+        gpiog.moder.modify(|_, w| {
+            w.moder6()
+                .alternate()
+                .moder7()
+                .alternate()
+                .moder10()
+                .alternate()
+                .moder11()
+                .alternate()
+                .moder12()
+                .alternate()
+        });
+
         gpiog.otyper.modify(|_, w| {
             w.ot6()
                 .push_pull()
@@ -364,32 +336,6 @@ impl Ltdc {
         gpiog
             .afrh
             .modify(|_, w| w.afrh10().af14().afrh11().af14().afrh10().af12());
-
-        gpiog.moder.modify(|_, w| {
-            w.moder6()
-                .bits(0x02)
-                .moder7()
-                .bits(0x02)
-                .moder10()
-                .bits(0x02)
-                .moder11()
-                .bits(0x02)
-                .moder12()
-                .bits(0x02)
-        });
-
-        gpiog.pupdr.modify(|_, w| {
-            w.pupdr6()
-                .floating()
-                .pupdr7()
-                .floating()
-                .pupdr10()
-                .floating()
-                .pupdr11()
-                .floating()
-                .pupdr12()
-                .floating()
-        });
 
         gpiog.ospeedr.modify(|_, w| {
             w.ospeedr6()
@@ -417,7 +363,7 @@ impl Ltdc {
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 
-        // info!("LTDC Clock config is OK!");
+        info!("LTDC Clock config is OK!");
 
         // LTDC config
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
@@ -461,23 +407,24 @@ impl Ltdc {
         // LCD RDX PD12
         // LCD WRX PD 13
         gpiod
+            .moder
+            .modify(|_, w| w.moder12().output().moder13().output());
+        gpiod
             .otyper
             .modify(|_, w| w.ot12().push_pull().ot13().push_pull());
-        gpiod
-            .pupdr
-            .modify(|_, w| w.pupdr12().floating().pupdr12().floating());
         gpiod.ospeedr.modify(|_, w| {
             w.ospeedr12()
                 .very_high_speed()
                 .ospeedr13()
                 .very_high_speed()
         });
+
         // LCD NCS PC2
+        gpioc.moder.modify(|_, w| w.moder2().output());
         gpioc.otyper.modify(|_, w| w.ot2().push_pull());
-        gpioc.pupdr.modify(|_, w| w.pupdr2().floating());
         gpioc.ospeedr.modify(|_, w| w.ospeedr2().very_high_speed());
 
-        lcd_cs_low!();
+        lcd_wrx_high!();
         lcd_cs_high!();
 
         // LCD SPI init
@@ -490,30 +437,20 @@ impl Ltdc {
         // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MSI PF9
         rcc.apb2enr.modify(|_, w| w.spi5en().set_bit());
 
+        gpiof.moder.modify(|_, w| {
+            w.moder7()
+                .alternate()
+                .moder8()
+                .alternate()
+                .moder9()
+                .alternate()
+        });
         gpiof
             .otyper
             .modify(|_, w| w.ot7().push_pull().ot8().push_pull().ot9().push_pull());
 
         gpiof.afrl.modify(|_, w| w.afrl7().af5());
         gpiof.afrh.modify(|_, w| w.afrh8().af5().afrh9().af5());
-
-        gpiof.moder.modify(|_, w| {
-            w.moder7()
-                .bits(0x02)
-                .moder8()
-                .bits(0x02)
-                .moder9()
-                .bits(0x02)
-        });
-
-        gpiof.pupdr.modify(|_, w| {
-            w.pupdr7()
-                .pull_down()
-                .pupdr8()
-                .pull_down()
-                .pupdr9()
-                .pull_down()
-        });
 
         gpiof.ospeedr.modify(|_, w| {
             w.ospeedr7()
@@ -545,119 +482,119 @@ impl Ltdc {
         });
 
         info!("LCD SP5 seems to be functional!");
+        /*
+                // Configure LCD
+                LCD_IO_WriteReg!(0xCA);
+                LCD_IO_WriteData!(0xC3);
+                LCD_IO_WriteData!(0x08);
+                LCD_IO_WriteData!(0x50);
+                LCD_IO_WriteReg!(0xcf);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0xC1);
+                LCD_IO_WriteData!(0x30);
+                LCD_IO_WriteReg!(0xed);
+                LCD_IO_WriteData!(0x64);
+                LCD_IO_WriteData!(0x03);
+                LCD_IO_WriteData!(0x12);
+                LCD_IO_WriteData!(0x81);
+                LCD_IO_WriteReg!(0xe8);
+                LCD_IO_WriteData!(0x85);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x78);
+                LCD_IO_WriteReg!(0xcb);
+                LCD_IO_WriteData!(0x39);
+                LCD_IO_WriteData!(0x2C);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x34);
+                LCD_IO_WriteData!(0x02);
+                LCD_IO_WriteReg!(0xf7);
+                LCD_IO_WriteData!(0x20);
+                LCD_IO_WriteReg!(0xea);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteReg!(0xb1);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x1B);
+                LCD_IO_WriteReg!(0xb6);
+                LCD_IO_WriteData!(0x0A);
+                LCD_IO_WriteData!(0xA2);
+                LCD_IO_WriteReg!(0xc0);
+                LCD_IO_WriteData!(0x10);
+                LCD_IO_WriteReg!(0xc1);
+                LCD_IO_WriteData!(0x10);
+                LCD_IO_WriteReg!(0xc5);
+                LCD_IO_WriteData!(0x45);
+                LCD_IO_WriteData!(0x15);
+                LCD_IO_WriteReg!(0xc7);
+                LCD_IO_WriteData!(0x90);
+                LCD_IO_WriteReg!(0x36);
+                LCD_IO_WriteData!(0xC8);
+                LCD_IO_WriteReg!(0xf2);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteReg!(0xb0);
+                LCD_IO_WriteData!(0xC2);
+                LCD_IO_WriteReg!(0xb6);
+                LCD_IO_WriteData!(0x0A);
+                LCD_IO_WriteData!(0xA7);
+                LCD_IO_WriteData!(0x27);
+                LCD_IO_WriteData!(0x04);
 
-        /* Configure LCD */
-        LCD_IO_WriteReg!(0xCA);
-        LCD_IO_WriteData!(0xC3);
-        LCD_IO_WriteData!(0x08);
-        LCD_IO_WriteData!(0x50);
-        LCD_IO_WriteReg!(0xcf);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0xC1);
-        LCD_IO_WriteData!(0x30);
-        LCD_IO_WriteReg!(0xed);
-        LCD_IO_WriteData!(0x64);
-        LCD_IO_WriteData!(0x03);
-        LCD_IO_WriteData!(0x12);
-        LCD_IO_WriteData!(0x81);
-        LCD_IO_WriteReg!(0xe8);
-        LCD_IO_WriteData!(0x85);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x78);
-        LCD_IO_WriteReg!(0xcb);
-        LCD_IO_WriteData!(0x39);
-        LCD_IO_WriteData!(0x2C);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x34);
-        LCD_IO_WriteData!(0x02);
-        LCD_IO_WriteReg!(0xf7);
-        LCD_IO_WriteData!(0x20);
-        LCD_IO_WriteReg!(0xea);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteReg!(0xb1);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x1B);
-        LCD_IO_WriteReg!(0xb6);
-        LCD_IO_WriteData!(0x0A);
-        LCD_IO_WriteData!(0xA2);
-        LCD_IO_WriteReg!(0xc0);
-        LCD_IO_WriteData!(0x10);
-        LCD_IO_WriteReg!(0xc1);
-        LCD_IO_WriteData!(0x10);
-        LCD_IO_WriteReg!(0xc5);
-        LCD_IO_WriteData!(0x45);
-        LCD_IO_WriteData!(0x15);
-        LCD_IO_WriteReg!(0xc7);
-        LCD_IO_WriteData!(0x90);
-        LCD_IO_WriteReg!(0x36);
-        LCD_IO_WriteData!(0xC8);
-        LCD_IO_WriteReg!(0xf2);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteReg!(0xb0);
-        LCD_IO_WriteData!(0xC2);
-        LCD_IO_WriteReg!(0xb6);
-        LCD_IO_WriteData!(0x0A);
-        LCD_IO_WriteData!(0xA7);
-        LCD_IO_WriteData!(0x27);
-        LCD_IO_WriteData!(0x04);
+                /* Colomn address set */
+                LCD_IO_WriteReg!(0x2a);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0xEF);
+                /* Page address set */
+                LCD_IO_WriteReg!(0x2b);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x01);
+                LCD_IO_WriteData!(0x3F);
+                LCD_IO_WriteReg!(0xf6);
+                LCD_IO_WriteData!(0x01);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x06);
 
-        /* Colomn address set */
-        LCD_IO_WriteReg!(0x2a);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0xEF);
-        /* Page address set */
-        LCD_IO_WriteReg!(0x2b);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x01);
-        LCD_IO_WriteData!(0x3F);
-        LCD_IO_WriteReg!(0xf6);
-        LCD_IO_WriteData!(0x01);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x06);
+                LCD_IO_WriteReg!(0x2c);
+                delay.delay_us(200_000);
 
-        LCD_IO_WriteReg!(0x2c);
-        delay.delay_us(200_000);
+                LCD_IO_WriteReg!(0x26);
+                LCD_IO_WriteData!(0x01);
 
-        LCD_IO_WriteReg!(0x26);
-        LCD_IO_WriteData!(0x01);
-
-        LCD_IO_WriteReg!(0xe0);
-        LCD_IO_WriteData!(0x0F);
-        LCD_IO_WriteData!(0x29);
-        LCD_IO_WriteData!(0x24);
-        LCD_IO_WriteData!(0x0C);
-        LCD_IO_WriteData!(0x0E);
-        LCD_IO_WriteData!(0x09);
-        LCD_IO_WriteData!(0x4E);
-        LCD_IO_WriteData!(0x78);
-        LCD_IO_WriteData!(0x3C);
-        LCD_IO_WriteData!(0x09);
-        LCD_IO_WriteData!(0x13);
-        LCD_IO_WriteData!(0x05);
-        LCD_IO_WriteData!(0x17);
-        LCD_IO_WriteData!(0x11);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteReg!(0xe1);
-        LCD_IO_WriteData!(0x00);
-        LCD_IO_WriteData!(0x16);
-        LCD_IO_WriteData!(0x1B);
-        LCD_IO_WriteData!(0x04);
-        LCD_IO_WriteData!(0x11);
-        LCD_IO_WriteData!(0x07);
-        LCD_IO_WriteData!(0x31);
-        LCD_IO_WriteData!(0x33);
-        LCD_IO_WriteData!(0x42);
-        LCD_IO_WriteData!(0x05);
-        LCD_IO_WriteData!(0x0C);
-        LCD_IO_WriteData!(0x0A);
-        LCD_IO_WriteData!(0x28);
-        LCD_IO_WriteData!(0x2F);
-        LCD_IO_WriteData!(0x0F);
-
+                LCD_IO_WriteReg!(0xe0);
+                LCD_IO_WriteData!(0x0F);
+                LCD_IO_WriteData!(0x29);
+                LCD_IO_WriteData!(0x24);
+                LCD_IO_WriteData!(0x0C);
+                LCD_IO_WriteData!(0x0E);
+                LCD_IO_WriteData!(0x09);
+                LCD_IO_WriteData!(0x4E);
+                LCD_IO_WriteData!(0x78);
+                LCD_IO_WriteData!(0x3C);
+                LCD_IO_WriteData!(0x09);
+                LCD_IO_WriteData!(0x13);
+                LCD_IO_WriteData!(0x05);
+                LCD_IO_WriteData!(0x17);
+                LCD_IO_WriteData!(0x11);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteReg!(0xe1);
+                LCD_IO_WriteData!(0x00);
+                LCD_IO_WriteData!(0x16);
+                LCD_IO_WriteData!(0x1B);
+                LCD_IO_WriteData!(0x04);
+                LCD_IO_WriteData!(0x11);
+                LCD_IO_WriteData!(0x07);
+                LCD_IO_WriteData!(0x31);
+                LCD_IO_WriteData!(0x33);
+                LCD_IO_WriteData!(0x42);
+                LCD_IO_WriteData!(0x05);
+                LCD_IO_WriteData!(0x0C);
+                LCD_IO_WriteData!(0x0A);
+                LCD_IO_WriteData!(0x28);
+                LCD_IO_WriteData!(0x2F);
+                LCD_IO_WriteData!(0x0F);
+        */
         LCD_IO_WriteReg!(0x11);
         delay.delay_us(200_000);
 
