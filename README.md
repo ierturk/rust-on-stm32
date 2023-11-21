@@ -2,7 +2,7 @@
 
 [Associated post](https://erturk.me/projects/working-with-rust-embedded-on-wsl/)
 
-Small project by using Ebassy Async RTOS
+A small project by using Lilos Async RTOS and STM32F4xx-hal primitives 
 
 If everything is installed properly, the workspace can be opened in VS Code and a hit on F5 should build the project without errors or warnings and automatically start a debug session. The program should be halted at the breakpoint at main().
 

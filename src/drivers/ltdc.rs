@@ -40,29 +40,31 @@ macro_rules! lcd_cs_low {
 }
 
 macro_rules! spi5_tx {
-    ($in:expr) => {
+    ($in:expr, $del:expr) => {
         lcd_cs_low!();
+        $del.delay_us(10_000);
         let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
         if spi5_dev.cr1.read().spe().bit_is_clear() {
             spi5_dev.cr1.modify(|_, w| w.spe().set_bit());
         }
         spi5_dev.dr.write(|w| unsafe { w.bits($in) });
         while spi5_dev.sr.read().bsy().bit_is_set() || spi5_dev.sr.read().txe().bit_is_clear() {}
+        $del.delay_us(10_000);
         lcd_cs_high!();
     };
 }
 
 macro_rules! LCD_IO_WriteData {
-    ($in:expr) => {
+    ($in:expr, $del:expr) => {
         lcd_wrx_high!();
-        spi5_tx!($in);
+        spi5_tx!($in, $del);
     };
 }
 
 macro_rules! LCD_IO_WriteReg {
-    ($in:expr) => {
+    ($in:expr, $del:expr) => {
         lcd_wrx_low!();
-        spi5_tx!($in);
+        spi5_tx!($in, $del);
     };
 }
 
@@ -397,8 +399,8 @@ impl Ltdc {
 
         ltd_dev.gcr.modify(|_, w| w.ltdcen().enabled());
 
-        // unsafe { NVIC::unmask(Interrupt::LCD_TFT) };
-        // unsafe { NVIC::unmask(Interrupt::LCD_TFT_1) };
+        unsafe { NVIC::unmask(Interrupt::LCD_TFT) };
+        unsafe { NVIC::unmask(Interrupt::LCD_TFT_1) };
         // unsafe { NVIC::unmask(Interrupt::DMA2D) };
 
         // ILI931 LCD IO init
@@ -482,125 +484,188 @@ impl Ltdc {
         });
 
         info!("LCD SP5 seems to be functional!");
-        /*
-                // Configure LCD
-                LCD_IO_WriteReg!(0xCA);
-                LCD_IO_WriteData!(0xC3);
-                LCD_IO_WriteData!(0x08);
-                LCD_IO_WriteData!(0x50);
-                LCD_IO_WriteReg!(0xcf);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0xC1);
-                LCD_IO_WriteData!(0x30);
-                LCD_IO_WriteReg!(0xed);
-                LCD_IO_WriteData!(0x64);
-                LCD_IO_WriteData!(0x03);
-                LCD_IO_WriteData!(0x12);
-                LCD_IO_WriteData!(0x81);
-                LCD_IO_WriteReg!(0xe8);
-                LCD_IO_WriteData!(0x85);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x78);
-                LCD_IO_WriteReg!(0xcb);
-                LCD_IO_WriteData!(0x39);
-                LCD_IO_WriteData!(0x2C);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x34);
-                LCD_IO_WriteData!(0x02);
-                LCD_IO_WriteReg!(0xf7);
-                LCD_IO_WriteData!(0x20);
-                LCD_IO_WriteReg!(0xea);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteReg!(0xb1);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x1B);
-                LCD_IO_WriteReg!(0xb6);
-                LCD_IO_WriteData!(0x0A);
-                LCD_IO_WriteData!(0xA2);
-                LCD_IO_WriteReg!(0xc0);
-                LCD_IO_WriteData!(0x10);
-                LCD_IO_WriteReg!(0xc1);
-                LCD_IO_WriteData!(0x10);
-                LCD_IO_WriteReg!(0xc5);
-                LCD_IO_WriteData!(0x45);
-                LCD_IO_WriteData!(0x15);
-                LCD_IO_WriteReg!(0xc7);
-                LCD_IO_WriteData!(0x90);
-                LCD_IO_WriteReg!(0x36);
-                LCD_IO_WriteData!(0xC8);
-                LCD_IO_WriteReg!(0xf2);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteReg!(0xb0);
-                LCD_IO_WriteData!(0xC2);
-                LCD_IO_WriteReg!(0xb6);
-                LCD_IO_WriteData!(0x0A);
-                LCD_IO_WriteData!(0xA7);
-                LCD_IO_WriteData!(0x27);
-                LCD_IO_WriteData!(0x04);
 
-                /* Colomn address set */
-                LCD_IO_WriteReg!(0x2a);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0xEF);
-                /* Page address set */
-                LCD_IO_WriteReg!(0x2b);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x01);
-                LCD_IO_WriteData!(0x3F);
-                LCD_IO_WriteReg!(0xf6);
-                LCD_IO_WriteData!(0x01);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x06);
+        // Configure LCD
+        LCD_IO_WriteReg!(0xCA, delay);
+        LCD_IO_WriteData!(0xC3, delay);
+        LCD_IO_WriteData!(0x08, delay);
+        LCD_IO_WriteData!(0x50, delay);
+        LCD_IO_WriteReg!(0xcf, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0xC1, delay);
+        LCD_IO_WriteData!(0x30, delay);
+        LCD_IO_WriteReg!(0xed, delay);
+        LCD_IO_WriteData!(0x64, delay);
+        LCD_IO_WriteData!(0x03, delay);
+        LCD_IO_WriteData!(0x12, delay);
+        LCD_IO_WriteData!(0x81, delay);
+        LCD_IO_WriteReg!(0xe8, delay);
+        LCD_IO_WriteData!(0x85, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x78, delay);
+        LCD_IO_WriteReg!(0xcb, delay);
+        LCD_IO_WriteData!(0x39, delay);
+        LCD_IO_WriteData!(0x2C, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x34, delay);
+        LCD_IO_WriteData!(0x02, delay);
+        LCD_IO_WriteReg!(0xf7, delay);
+        LCD_IO_WriteData!(0x20, delay);
+        LCD_IO_WriteReg!(0xea, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteReg!(0xb1, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x1B, delay);
+        LCD_IO_WriteReg!(0xb6, delay);
+        LCD_IO_WriteData!(0x0A, delay);
+        LCD_IO_WriteData!(0xA2, delay);
+        LCD_IO_WriteReg!(0xc0, delay);
+        LCD_IO_WriteData!(0x10, delay);
+        LCD_IO_WriteReg!(0xc1, delay);
+        LCD_IO_WriteData!(0x10, delay);
+        LCD_IO_WriteReg!(0xc5, delay);
+        LCD_IO_WriteData!(0x45, delay);
+        LCD_IO_WriteData!(0x15, delay);
+        LCD_IO_WriteReg!(0xc7, delay);
+        LCD_IO_WriteData!(0x90, delay);
+        LCD_IO_WriteReg!(0x36, delay);
+        LCD_IO_WriteData!(0xC8, delay);
+        LCD_IO_WriteReg!(0xf2, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteReg!(0xb0, delay);
+        LCD_IO_WriteData!(0xC2, delay);
+        LCD_IO_WriteReg!(0xb6, delay);
+        LCD_IO_WriteData!(0x0A, delay);
+        LCD_IO_WriteData!(0xA7, delay);
+        LCD_IO_WriteData!(0x27, delay);
+        LCD_IO_WriteData!(0x04, delay);
 
-                LCD_IO_WriteReg!(0x2c);
-                delay.delay_us(200_000);
+        /* Colomn address set */
+        LCD_IO_WriteReg!(0x2a, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0xEF, delay);
+        /* Page address set */
+        LCD_IO_WriteReg!(0x2b, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x01, delay);
+        LCD_IO_WriteData!(0x3F, delay);
+        LCD_IO_WriteReg!(0xf6, delay);
+        LCD_IO_WriteData!(0x01, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x06, delay);
 
-                LCD_IO_WriteReg!(0x26);
-                LCD_IO_WriteData!(0x01);
-
-                LCD_IO_WriteReg!(0xe0);
-                LCD_IO_WriteData!(0x0F);
-                LCD_IO_WriteData!(0x29);
-                LCD_IO_WriteData!(0x24);
-                LCD_IO_WriteData!(0x0C);
-                LCD_IO_WriteData!(0x0E);
-                LCD_IO_WriteData!(0x09);
-                LCD_IO_WriteData!(0x4E);
-                LCD_IO_WriteData!(0x78);
-                LCD_IO_WriteData!(0x3C);
-                LCD_IO_WriteData!(0x09);
-                LCD_IO_WriteData!(0x13);
-                LCD_IO_WriteData!(0x05);
-                LCD_IO_WriteData!(0x17);
-                LCD_IO_WriteData!(0x11);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteReg!(0xe1);
-                LCD_IO_WriteData!(0x00);
-                LCD_IO_WriteData!(0x16);
-                LCD_IO_WriteData!(0x1B);
-                LCD_IO_WriteData!(0x04);
-                LCD_IO_WriteData!(0x11);
-                LCD_IO_WriteData!(0x07);
-                LCD_IO_WriteData!(0x31);
-                LCD_IO_WriteData!(0x33);
-                LCD_IO_WriteData!(0x42);
-                LCD_IO_WriteData!(0x05);
-                LCD_IO_WriteData!(0x0C);
-                LCD_IO_WriteData!(0x0A);
-                LCD_IO_WriteData!(0x28);
-                LCD_IO_WriteData!(0x2F);
-                LCD_IO_WriteData!(0x0F);
-        */
-        LCD_IO_WriteReg!(0x11);
+        LCD_IO_WriteReg!(0x2c, delay);
         delay.delay_us(200_000);
 
-        LCD_IO_WriteReg!(0x29);
+        LCD_IO_WriteReg!(0x26, delay);
+        LCD_IO_WriteData!(0x01, delay);
+
+        LCD_IO_WriteReg!(0xe0, delay);
+        LCD_IO_WriteData!(0x0F, delay);
+        LCD_IO_WriteData!(0x29, delay);
+        LCD_IO_WriteData!(0x24, delay);
+        LCD_IO_WriteData!(0x0C, delay);
+        LCD_IO_WriteData!(0x0E, delay);
+        LCD_IO_WriteData!(0x09, delay);
+        LCD_IO_WriteData!(0x4E, delay);
+        LCD_IO_WriteData!(0x78, delay);
+        LCD_IO_WriteData!(0x3C, delay);
+        LCD_IO_WriteData!(0x09, delay);
+        LCD_IO_WriteData!(0x13, delay);
+        LCD_IO_WriteData!(0x05, delay);
+        LCD_IO_WriteData!(0x17, delay);
+        LCD_IO_WriteData!(0x11, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteReg!(0xe1, delay);
+        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteData!(0x16, delay);
+        LCD_IO_WriteData!(0x1B, delay);
+        LCD_IO_WriteData!(0x04, delay);
+        LCD_IO_WriteData!(0x11, delay);
+        LCD_IO_WriteData!(0x07, delay);
+        LCD_IO_WriteData!(0x31, delay);
+        LCD_IO_WriteData!(0x33, delay);
+        LCD_IO_WriteData!(0x42, delay);
+        LCD_IO_WriteData!(0x05, delay);
+        LCD_IO_WriteData!(0x0C, delay);
+        LCD_IO_WriteData!(0x0A, delay);
+        LCD_IO_WriteData!(0x28, delay);
+        LCD_IO_WriteData!(0x2F, delay);
+        LCD_IO_WriteData!(0x0F, delay);
+
+        LCD_IO_WriteReg!(0x11, delay);
+        delay.delay_us(200_000);
+
+        LCD_IO_WriteReg!(0x29, delay);
         /* GRAM start writing */
-        LCD_IO_WriteReg!(0x2c);
+        LCD_IO_WriteReg!(0x2c, delay);
+
+        // Layer Config
+        // Taken hard coded
+
+        // Horizontal start
+        ltd_dev
+            .layer1
+            .whpcr
+            .modify(|_, w| w.whsppos().bits(0x00).whstpos().bits(0x00));
+
+        // Vertical start
+        ltd_dev
+            .layer1
+            .wvpcr
+            .modify(|_, w| w.wvsppos().bits(0x00).wvstpos().bits(0x00));
+
+        // Pixel format
+        ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x00));
+
+        // Default colours
+        ltd_dev.layer1.dccr.modify(|_, w| {
+            w.dcalpha()
+                .bits(0x00)
+                .dcred()
+                .bits(0x00)
+                .dcgreen()
+                .bits(0x00)
+                .dcblue()
+                .bits(0x00)
+        });
+
+        // Specifies the constant alpha value
+        ltd_dev.layer1.cacr.modify(|_, w| w.consta().bits(0xff));
+
+        // Specifies the blending factors
+        ltd_dev
+            .layer1
+            .bfcr
+            .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
+
+        // Configure the color frame buffer start address
+        ltd_dev.layer1.cfbar.modify(|_, w| w.cfbadd().bits(0x00));
+
+        // Configure the color frame buffer pitch in byte
+        ltd_dev
+            .layer1
+            .cfblr
+            .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
+
+        // Configure the frame buffer line number
+        ltd_dev
+            .layer1
+            .cfblnr
+            .modify(|_, w| w.cfblnbr().bits(0x0140));
+
+        // Enable LTDC_Layer by setting LEN bit
+        ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
+
+        // Set the Immediate Reload
+        ltd_dev.srcr.modify(|_, w| w.imr().set_bit());
+
+        // Enable dither
+        ltd_dev.gcr.modify(|_, w| w.den().set_bit());
 
         return true;
     }
