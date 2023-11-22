@@ -1,11 +1,8 @@
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
-use hal::gpio::GpioExt;
-use hal::gpio::Speed;
 use hal::interrupt;
 use hal::pac::Interrupt;
-use hal::pac::Peripherals as device;
 use hal::pac::NVIC;
 use stm32f4xx_hal as hal;
 

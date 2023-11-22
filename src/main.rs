@@ -4,7 +4,8 @@
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
-use hal::interrupt;
+use embedded_graphics_core::pixelcolor::Rgb565;
+use embedded_graphics_core::pixelcolor::RgbColor;
 use hal::pac::Interrupt;
 use hal::pac::Peripherals as device;
 use hal::pac::NVIC;
@@ -12,14 +13,17 @@ use hal::prelude::*;
 use stm32f4xx_hal as hal;
 
 mod drivers;
+use drivers::display::LtdcDisplay;
 use drivers::fmc::Sdram;
 use drivers::ltdc::Ltdc;
 
-use stm32f4xx_hal::{
-    pac::{self},
-    prelude::*,
-    spi::{Mode, Phase, Polarity, Spi},
+use embedded_graphics::primitives::Primitive;
+use embedded_graphics::{
+    prelude::Point,
+    primitives::{Circle, PrimitiveStyle},
 };
+use embedded_graphics_core::Drawable;
+use hal::interrupt;
 
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
@@ -55,9 +59,7 @@ fn main() -> ! {
     // Init and test FMC/SDRAM that start at 0xD000_0000
     let sdram_ptr = Sdram::new(&mut delay);
     let sdram_size = 8 * 1024 * 1024; // 8MiB
-    let ram_slice = unsafe {
-        core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
-    };
+    let ram_slice = unsafe { core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / 4) };
     /*
        for n in 0..ram_slice.len() {
            ram_slice[n] = n as u16;
@@ -75,6 +77,13 @@ fn main() -> ! {
 
     delay.release();
 
+    let mut display = LtdcDisplay::new(sdram_ptr, sdram_size);
+
+    let circle = Circle::new(Point::new(100, 100), 50)
+        .into_styled(PrimitiveStyle::with_stroke(Rgb565::BLACK, 2));
+    let _ = circle.draw(&mut display);
+
+    // Idle async app for heartbeat
     dp.GPIOG
         .moder
         .modify(|_, w| w.moder13().output().moder14().output());
