@@ -498,86 +498,131 @@ impl Ltdc {
         info!("LCD SP5 seems to be functional!");
         // delay.delay_us(5000_000);
 
+        // const LCD_SWRESET: u32 = 0x01;
+        const LCD_SLEEP_OUT: u32 = 0x11;
+        // const LCD_WRITE_MEM_CONTINUE: u32 = 0x3c;
+        // const LCD_PIXEL_FORMAT: u32 = 0x3a;
+        const LCD_DISPLAY_ON: u32 = 0x29;
+
+        const LCD_INTERFACE: u32 = 0xf6;
+        const LCD_COLUMN_ADDR: u32 = 0x2a;
+        const LCD_PAGE_ADDR: u32 = 0x2b;
+        const LCD_POWERB: u32 = 0xCF;
+        const LCD_POWER_SEQ: u32 = 0xED;
+        const LCD_DTCA: u32 = 0xE8;
+        const LCD_POWERA: u32 = 0xCB;
+        const LCD_PRC: u32 = 0xF7;
+        const LCD_DTCB: u32 = 0xEA;
+        const LCD_FRMCTR1: u32 = 0xb1;
+        const LCD_POWER1: u32 = 0xC0;
+        const LCD_POWER2: u32 = 0xC1;
+        const LCD_VCOM1: u32 = 0xC5;
+        const LCD_VCOM2: u32 = 0xC7;
+        const LCD_MAC: u32 = 0x36;
+        const LCD_3GAMMA_EN: u32 = 0xF2;
+        const LCD_RGB_INTERFACE: u32 = 0xb0;
+        const LCD_DFC: u32 = 0xb6;
+        const LCD_GRAM: u32 = 0x2C;
+        const LCD_GAMMA: u32 = 0x26;
+        const LCD_PGAMMA: u32 = 0xE0;
+        const LCD_NGAMMA: u32 = 0xE1;
+
         // Configure LCD
-        LCD_IO_WriteReg!(0xCA, delay);
+        LCD_IO_WriteReg!(0xCA, delay); //???
         LCD_IO_WriteData!(0xC3, delay);
         LCD_IO_WriteData!(0x08, delay);
         LCD_IO_WriteData!(0x50, delay);
-        LCD_IO_WriteReg!(0xcf, delay);
+
+        LCD_IO_WriteReg!(LCD_POWERB, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0xC1, delay);
         LCD_IO_WriteData!(0x30, delay);
-        LCD_IO_WriteReg!(0xed, delay);
+
+        LCD_IO_WriteReg!(LCD_POWER_SEQ, delay);
         LCD_IO_WriteData!(0x64, delay);
         LCD_IO_WriteData!(0x03, delay);
         LCD_IO_WriteData!(0x12, delay);
         LCD_IO_WriteData!(0x81, delay);
-        LCD_IO_WriteReg!(0xe8, delay);
+
+        LCD_IO_WriteReg!(LCD_DTCA, delay);
         LCD_IO_WriteData!(0x85, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x78, delay);
-        LCD_IO_WriteReg!(0xcb, delay);
+
+        LCD_IO_WriteReg!(LCD_POWERA, delay);
         LCD_IO_WriteData!(0x39, delay);
         LCD_IO_WriteData!(0x2C, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x34, delay);
         LCD_IO_WriteData!(0x02, delay);
-        LCD_IO_WriteReg!(0xf7, delay);
+
+        LCD_IO_WriteReg!(LCD_PRC, delay);
         LCD_IO_WriteData!(0x20, delay);
-        LCD_IO_WriteReg!(0xea, delay);
+
+        LCD_IO_WriteReg!(LCD_DTCB, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteReg!(0xb1, delay);
+
+        LCD_IO_WriteReg!(LCD_FRMCTR1, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x1B, delay);
-        LCD_IO_WriteReg!(0xb6, delay);
+
+        LCD_IO_WriteReg!(LCD_DFC, delay);
         LCD_IO_WriteData!(0x0A, delay);
         LCD_IO_WriteData!(0xA2, delay);
-        LCD_IO_WriteReg!(0xc0, delay);
+
+        LCD_IO_WriteReg!(LCD_POWER1, delay);
         LCD_IO_WriteData!(0x10, delay);
-        LCD_IO_WriteReg!(0xc1, delay);
+
+        LCD_IO_WriteReg!(LCD_POWER2, delay);
         LCD_IO_WriteData!(0x10, delay);
-        LCD_IO_WriteReg!(0xc5, delay);
+
+        LCD_IO_WriteReg!(LCD_VCOM1, delay);
         LCD_IO_WriteData!(0x45, delay);
         LCD_IO_WriteData!(0x15, delay);
-        LCD_IO_WriteReg!(0xc7, delay);
+
+        LCD_IO_WriteReg!(LCD_VCOM2, delay);
         LCD_IO_WriteData!(0x90, delay);
-        LCD_IO_WriteReg!(0x36, delay);
+
+        LCD_IO_WriteReg!(LCD_MAC, delay);
         LCD_IO_WriteData!(0xC8, delay);
-        LCD_IO_WriteReg!(0xf2, delay);
+
+        LCD_IO_WriteReg!(LCD_3GAMMA_EN, delay);
         LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteReg!(0xb0, delay);
+
+        LCD_IO_WriteReg!(LCD_RGB_INTERFACE, delay);
         LCD_IO_WriteData!(0xC2, delay);
-        LCD_IO_WriteReg!(0xb6, delay);
+
+        LCD_IO_WriteReg!(LCD_DFC, delay);
         LCD_IO_WriteData!(0x0A, delay);
         LCD_IO_WriteData!(0xA7, delay);
         LCD_IO_WriteData!(0x27, delay);
         LCD_IO_WriteData!(0x04, delay);
 
-        // Colomn address set
-        LCD_IO_WriteReg!(0x2a, delay);
+        LCD_IO_WriteReg!(LCD_COLUMN_ADDR, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0xEF, delay);
-        // Page address set
-        LCD_IO_WriteReg!(0x2b, delay);
+
+        LCD_IO_WriteReg!(LCD_PAGE_ADDR, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x01, delay);
         LCD_IO_WriteData!(0x3F, delay);
-        LCD_IO_WriteReg!(0xf6, delay);
+
+        LCD_IO_WriteReg!(LCD_INTERFACE, delay);
         LCD_IO_WriteData!(0x01, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x06, delay);
 
-        LCD_IO_WriteReg!(0x2c, delay);
+        LCD_IO_WriteReg!(LCD_GRAM, delay);
         delay.delay_us(200_000);
 
-        LCD_IO_WriteReg!(0x26, delay);
+        LCD_IO_WriteReg!(LCD_GAMMA, delay);
         LCD_IO_WriteData!(0x01, delay);
 
-        LCD_IO_WriteReg!(0xe0, delay);
+        LCD_IO_WriteReg!(LCD_PGAMMA, delay);
         LCD_IO_WriteData!(0x0F, delay);
         LCD_IO_WriteData!(0x29, delay);
         LCD_IO_WriteData!(0x24, delay);
@@ -593,7 +638,8 @@ impl Ltdc {
         LCD_IO_WriteData!(0x17, delay);
         LCD_IO_WriteData!(0x11, delay);
         LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteReg!(0xe1, delay);
+
+        LCD_IO_WriteReg!(LCD_NGAMMA, delay);
         LCD_IO_WriteData!(0x00, delay);
         LCD_IO_WriteData!(0x16, delay);
         LCD_IO_WriteData!(0x1B, delay);
@@ -610,12 +656,12 @@ impl Ltdc {
         LCD_IO_WriteData!(0x2F, delay);
         LCD_IO_WriteData!(0x0F, delay);
 
-        LCD_IO_WriteReg!(0x11, delay);
+        LCD_IO_WriteReg!(LCD_SLEEP_OUT, delay);
         delay.delay_us(200_000);
 
-        LCD_IO_WriteReg!(0x29, delay);
+        LCD_IO_WriteReg!(LCD_DISPLAY_ON, delay);
         // GRAM start writing
-        LCD_IO_WriteReg!(0x2c, delay);
+        LCD_IO_WriteReg!(LCD_GRAM, delay);
         // delay.delay_us(5000_000);
 
         // Layer Config
