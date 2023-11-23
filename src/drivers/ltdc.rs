@@ -719,7 +719,7 @@ impl Ltdc {
         ltd_dev
             .layer1
             .cfblnr
-            .modify(|_, w| w.cfblnbr().bits(0x0140));
+            .modify(|_, w| w.cfblnbr().bits(3 * 0x0140));
 
         // Enable LTDC_Layer by setting LEN bit
         ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());

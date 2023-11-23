@@ -23,7 +23,7 @@ macro_rules! fmc_pins {
 
 pub struct Sdram {}
 impl Sdram {
-    pub fn new<D>(delay: &mut D) -> *mut u16
+    pub fn new<D>(delay: &mut D) -> *mut u8
     where
         D: DelayUs<u16>,
     {
@@ -279,7 +279,7 @@ impl Sdram {
         // Wait for SDRAM module is ready
         while dp.FMC.sdsr.read().busy().bit_is_set() {}
 
-        return 0xD000_0000 as *mut u16;
+        return 0xd000_0000 as *mut u8;
     }
 }
 

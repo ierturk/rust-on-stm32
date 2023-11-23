@@ -19,10 +19,16 @@ use drivers::ltdc::Ltdc;
 
 use embedded_graphics::primitives::Primitive;
 use embedded_graphics::{
+    mono_font::{ascii::FONT_9X18, MonoTextStyle},
+    prelude::*,
+    text::Text,
+};
+use embedded_graphics::{
     prelude::Point,
     primitives::{Circle, PrimitiveStyle},
 };
 use embedded_graphics_core::Drawable;
+
 use hal::interrupt;
 
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
@@ -52,14 +58,22 @@ fn main() -> ! {
         .hclk(168.MHz())
         .pclk1(42.MHz())
         .pclk2(84.MHz())
+        .require_pll48clk()
         .freeze();
+
+    let rcc_r = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
+    info!("pllm: {}", rcc_r.pllcfgr.read().pllm().bits());
+    info!("plln: {}", rcc_r.pllcfgr.read().plln().bits());
+    info!("pllp: {}", 2 * (rcc_r.pllcfgr.read().pllp().bits() + 1));
+    info!("pllsrc: {}", rcc_r.pllcfgr.read().pllsrc().bit());
+    info!("pllq: {}", rcc_r.pllcfgr.read().pllq().bits());
 
     let mut delay = dp.TIM1.delay_us(&clocks);
 
     // Init and test FMC/SDRAM that start at 0xD000_0000
     let sdram_ptr = Sdram::new(&mut delay);
     let sdram_size = 8 * 1024 * 1024; // 8MiB
-    let ram_slice = unsafe { core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / 4) };
+    let sdram = unsafe { core::slice::from_raw_parts_mut(sdram_ptr, sdram_size) };
     /*
        for n in 0..ram_slice.len() {
            ram_slice[n] = n as u16;
@@ -70,18 +84,35 @@ fn main() -> ! {
        }
     */
     info!("FMC/SDRAM module seems to be functional!");
-    ram_slice.fill(0x0000);
+    sdram.fill(0x00);
+
+    for n in 0..240 {
+        sdram[3 * n + 1] = 0xff;
+    }
+
+    for n in 0..240 {
+        sdram[3 * n + 10 * (3 * 240)] = 0xff;
+        sdram[3 * n + 20 * (3 * 240)] = 0xff;
+        sdram[3 * n + 1 + 30 * (3 * 240)] = 0xff;
+    }
+
+    for n in 0..320 {
+        sdram[n * (3 * 240) + 120] = 0xff;
+        sdram[n * (3 * 240) + 121] = 0xff;
+    }
 
     // Init LCD/LTDC Display
     let _ltdc_ok = Ltdc::new(&mut delay);
-
     delay.release();
 
     let mut display = LtdcDisplay::new(sdram_ptr, sdram_size);
 
-    let circle = Circle::new(Point::new(100, 100), 50)
-        .into_styled(PrimitiveStyle::with_stroke(Rgb565::BLACK, 2));
-    let _ = circle.draw(&mut display);
+    let _ = Circle::new(Point::new(100, 240), 20)
+        .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 2))
+        .draw(&mut display);
+
+    let style = MonoTextStyle::new(&FONT_9X18, Rgb565::WHITE);
+    let _ = Text::new("Hello Rust!", Point::new(100, 200), style).draw(&mut display);
 
     // Idle async app for heartbeat
     dp.GPIOG
