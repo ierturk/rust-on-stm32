@@ -389,16 +389,18 @@ impl Ltdc {
             .bccr
             .modify(|_, w| w.bcred().bits(0).bcgreen().bits(0).bcblue().bits(0));
 
-        ltd_dev.ier.modify(|_, w| {
-            w.fuie()
-                .enabled()
-                .terrie()
-                .enabled()
-                .rrie()
-                .enabled()
-                .lie()
-                .enabled()
-        });
+        /*
+               ltd_dev.ier.modify(|_, w| {
+                   w.fuie()
+                       .enabled()
+                       .terrie()
+                       .enabled()
+                       .rrie()
+                       .enabled()
+                       .lie()
+                       .enabled()
+               });
+        */
 
         ltd_dev
             .gcr
@@ -740,22 +742,22 @@ fn LCD_TFT() {
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
 
         if ltd_dev.isr.read().terrif().bit_is_set() && ltd_dev.ier.read().terrie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
             ltd_dev.icr.write(|w| w.cterrif().set_bit());
         }
 
         if ltd_dev.isr.read().fuif().bit_is_set() && ltd_dev.ier.read().fuie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
             ltd_dev.icr.write(|w| w.cfuif().set_bit());
         }
 
         if ltd_dev.isr.read().lif().bit_is_set() && ltd_dev.ier.read().lie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
             ltd_dev.icr.write(|w| w.clif().set_bit());
         }
 
         if ltd_dev.isr.read().rrif().bit_is_set() && ltd_dev.ier.read().rrie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
             ltd_dev.icr.write(|w| w.crrif().set_bit());
         }
     });
@@ -767,22 +769,22 @@ fn LCD_TFT_1() {
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
 
         if ltd_dev.isr.read().terrif().bit_is_set() && ltd_dev.ier.read().terrie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.terrie().clear_bit());
             ltd_dev.icr.write(|w| w.cterrif().set_bit());
         }
 
         if ltd_dev.isr.read().fuif().bit_is_set() && ltd_dev.ier.read().fuie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.fuie().clear_bit());
             ltd_dev.icr.write(|w| w.cfuif().set_bit());
         }
 
         if ltd_dev.isr.read().lif().bit_is_set() && ltd_dev.ier.read().lie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.lie().clear_bit());
             ltd_dev.icr.write(|w| w.clif().set_bit());
         }
 
         if ltd_dev.isr.read().rrif().bit_is_set() && ltd_dev.ier.read().rrie().bit_is_set() {
-            // ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
+            ltd_dev.ier.modify(|_, w| w.rrie().clear_bit());
             ltd_dev.icr.write(|w| w.crrif().set_bit());
         };
     });

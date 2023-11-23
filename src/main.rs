@@ -16,6 +16,7 @@ mod drivers;
 use drivers::display::LtdcDisplay;
 use drivers::fmc::Sdram;
 use drivers::ltdc::Ltdc;
+use drivers::touchscreen::TouchScreen;
 
 use embedded_graphics::primitives::Primitive;
 use embedded_graphics::{
