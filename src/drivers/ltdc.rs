@@ -680,7 +680,7 @@ impl Ltdc {
             .modify(|_, w| w.wvsppos().bits(0x0143).wvstpos().bits(0x04));
 
         // Pixel format
-        ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x01));
+        ltd_dev.layer1.pfcr.modify(|_, w| w.pf().bits(0x02));
 
         // Default colours
         ltd_dev.layer1.dccr.modify(|_, w| {
@@ -719,7 +719,7 @@ impl Ltdc {
         ltd_dev
             .layer1
             .cfblnr
-            .modify(|_, w| w.cfblnbr().bits(3 * 0x0140));
+            .modify(|_, w| w.cfblnbr().bits(0x0140));
 
         // Enable LTDC_Layer by setting LEN bit
         ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());

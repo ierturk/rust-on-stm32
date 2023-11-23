@@ -1,12 +1,12 @@
 use embedded_graphics_core::{pixelcolor::Rgb565, prelude::*, primitives::Rectangle};
 
 pub struct LtdcDisplay {
-    fb_ptr: *mut u8,
+    fb_ptr: *mut u16,
     len: usize,
 }
 
 impl LtdcDisplay {
-    pub fn new(fb_ptr: *mut u8, len: usize) -> LtdcDisplay {
+    pub fn new(fb_ptr: *mut u16, len: usize) -> LtdcDisplay {
         return LtdcDisplay { fb_ptr, len };
     }
 }
@@ -32,11 +32,8 @@ impl DrawTarget for LtdcDisplay {
                 let x = point.x as usize;
                 let y = point.y as usize;
 
-                let addr: usize = 3 * x + 3 * 240 * y;
-
-                fb[addr] = color.g();
-                fb[addr + 1] = color.b();
-                fb[addr + 2] = color.r();
+                let addr: usize = x + 240 * y;
+                fb[addr] = color.into_storage();
             }
         }
         Ok(())

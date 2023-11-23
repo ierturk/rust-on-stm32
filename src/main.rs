@@ -20,7 +20,6 @@ use drivers::ltdc::Ltdc;
 use embedded_graphics::primitives::Primitive;
 use embedded_graphics::{
     mono_font::{ascii::FONT_9X18, MonoTextStyle},
-    prelude::*,
     text::Text,
 };
 use embedded_graphics::{
@@ -73,7 +72,9 @@ fn main() -> ! {
     // Init and test FMC/SDRAM that start at 0xD000_0000
     let sdram_ptr = Sdram::new(&mut delay);
     let sdram_size = 8 * 1024 * 1024; // 8MiB
-    let sdram = unsafe { core::slice::from_raw_parts_mut(sdram_ptr, sdram_size) };
+    let sdram = unsafe {
+        core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
+    };
     /*
        for n in 0..ram_slice.len() {
            ram_slice[n] = n as u16;
@@ -87,18 +88,14 @@ fn main() -> ! {
     sdram.fill(0x00);
 
     for n in 0..240 {
-        sdram[3 * n + 1] = 0xff;
-    }
-
-    for n in 0..240 {
-        sdram[3 * n + 10 * (3 * 240)] = 0xff;
-        sdram[3 * n + 20 * (3 * 240)] = 0xff;
-        sdram[3 * n + 1 + 30 * (3 * 240)] = 0xff;
+        sdram[n] = 0x1f;
+        sdram[n + 10 * 240] = 0x1f;
+        sdram[n + 20 * 240] = 0x3f << 5;
+        sdram[n + 30 * 240] = 0x1f << 11;
     }
 
     for n in 0..320 {
-        sdram[n * (3 * 240) + 120] = 0xff;
-        sdram[n * (3 * 240) + 121] = 0xff;
+        sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
     }
 
     // Init LCD/LTDC Display
@@ -107,12 +104,12 @@ fn main() -> ! {
 
     let mut display = LtdcDisplay::new(sdram_ptr, sdram_size);
 
-    let _ = Circle::new(Point::new(100, 240), 20)
-        .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 2))
+    let _ = Circle::new(Point::new(100, 100), 40)
+        .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
         .draw(&mut display);
 
-    let style = MonoTextStyle::new(&FONT_9X18, Rgb565::WHITE);
-    let _ = Text::new("Hello Rust!", Point::new(100, 200), style).draw(&mut display);
+    let style = MonoTextStyle::new(&FONT_9X18, Rgb565::RED);
+    let _ = Text::new("Hello Rust!", Point::new(100, 300), style).draw(&mut display);
 
     // Idle async app for heartbeat
     dp.GPIOG
