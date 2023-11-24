@@ -6,6 +6,7 @@ use {defmt_rtt as _, panic_probe as _};
 
 use embedded_graphics_core::pixelcolor::Rgb565;
 use embedded_graphics_core::pixelcolor::RgbColor;
+use hal::i2c::Mode;
 use hal::pac::Interrupt;
 use hal::pac::Peripherals as device;
 use hal::pac::NVIC;
@@ -88,29 +89,58 @@ fn main() -> ! {
     info!("FMC/SDRAM module seems to be functional!");
     sdram.fill(0x00);
 
-    for n in 0..240 {
-        sdram[n] = 0x1f;
-        sdram[n + 10 * 240] = 0x1f;
-        sdram[n + 20 * 240] = 0x3f << 5;
-        sdram[n + 30 * 240] = 0x1f << 11;
-    }
+    /*
 
-    for n in 0..320 {
-        sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
-    }
+       for n in 0..240 {
+           sdram[n] = 0x1f;
+           sdram[n + 10 * 240] = 0x1f;
+           sdram[n + 20 * 240] = 0x3f << 5;
+           sdram[n + 30 * 240] = 0x1f << 11;
+       }
+
+       for n in 0..320 {
+           sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
+       }
+    */
 
     // Init LCD/LTDC Display
     let _ltdc_ok = Ltdc::new(&mut delay);
     delay.release();
 
-    let mut display = LtdcDisplay::new(sdram_ptr, sdram_size);
+    let mut display = LtdcDisplay::new(sdram_ptr, 320, 240);
 
-    let _ = Circle::new(Point::new(100, 100), 40)
+    let _ = Circle::new(Point::new(80, 0), 240)
         .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
         .draw(&mut display);
 
     let style = MonoTextStyle::new(&FONT_9X18, Rgb565::RED);
-    let _ = Text::new("Hello Rust!", Point::new(100, 300), style).draw(&mut display);
+    let _ = Text::new("Hello Rust!", Point::new(160, 120), style).draw(&mut display);
+
+    /*
+    let gpioa = dp.GPIOA.split();
+
+    let scl = gpioa.pa8.into_alternate_open_drain::<4>();
+
+    let gpioc = dp.GPIOC.split();
+    let sda = gpioc.pc9.into_alternate_open_drain::<4>();
+
+
+    // Touch Screen Init
+    let i2c_ts = dp.I2C3.i2c(
+        (scl, sda),
+        Mode::Standard {
+            frequency: 100.kHz(),
+        },
+        &clocks,
+    );
+
+       let mut ts_drv = TouchScreen { dev: i2c_ts };
+       let id = ts_drv.read_ts_id().unwrap();
+
+       // ts_drv.init(&mut delay);
+
+       info!("I2C3 TS ID:{:04x}", id);
+    */
 
     // Idle async app for heartbeat
     dp.GPIOG

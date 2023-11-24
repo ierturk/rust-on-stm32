@@ -2,18 +2,23 @@ use embedded_graphics_core::{pixelcolor::Rgb565, prelude::*, primitives::Rectang
 
 pub struct LtdcDisplay {
     fb_ptr: *mut u16,
-    len: usize,
+    width: usize,
+    height: usize,
 }
 
 impl LtdcDisplay {
-    pub fn new(fb_ptr: *mut u16, len: usize) -> LtdcDisplay {
-        return LtdcDisplay { fb_ptr, len };
+    pub fn new(fb_ptr: *mut u16, width: usize, height: usize) -> LtdcDisplay {
+        return LtdcDisplay {
+            fb_ptr,
+            width,
+            height,
+        };
     }
 }
 
 impl OriginDimensions for LtdcDisplay {
     fn size(&self) -> Size {
-        Size::new(240 as u32, 320 as u32)
+        Size::new(self.width as u32, self.height as u32)
     }
 }
 
@@ -25,14 +30,14 @@ impl DrawTarget for LtdcDisplay {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        let fb = unsafe { core::slice::from_raw_parts_mut(self.fb_ptr, self.len) };
+        let fb = unsafe { core::slice::from_raw_parts_mut(self.fb_ptr, self.width * self.height) };
 
         for Pixel(point, color) in pixels {
             if self.bounding_box().contains(point) {
                 let x = point.x as usize;
                 let y = point.y as usize;
 
-                let addr: usize = x + 240 * y;
+                let addr: usize = (self.height - y) + self.height * x;
                 fb[addr] = color.into_storage();
             }
         }
