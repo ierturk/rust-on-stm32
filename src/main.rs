@@ -295,6 +295,21 @@ fn main() -> ! {
     // };
     // let id = ts_drv.read_ts_id();
     // info!("I2C3 TS ID:{:04x}", id);
+
+    let i2c3_scl = gpio_a.pa8.into_alternate_open_drain::<4>();
+    let i2c3_sda = gpio_c.pc9.into_alternate_open_drain::<4>();
+
+    let mut i2c3_dev = dp.I2C3.i2c(
+        (i2c3_scl, i2c3_sda),
+        Mode::Standard {
+            frequency: 100.kHz(),
+        },
+        &clocks,
+    );
+
+    let mut ts_dev = TouchScreen { i2c_dev: i2c3_dev };
+    let _ = TouchScreen::new(&mut ts_dev, &mut delay);
+
     delay.release();
 
     // Idle async app for heartbeat
