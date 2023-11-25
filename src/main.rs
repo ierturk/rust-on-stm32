@@ -6,6 +6,7 @@ use {defmt_rtt as _, panic_probe as _};
 
 use embedded_graphics_core::pixelcolor::Rgb565;
 use embedded_graphics_core::pixelcolor::RgbColor;
+use hal::gpio::gpiob;
 use hal::i2c::Mode;
 use hal::pac::Interrupt;
 use hal::pac::Peripherals as device;
@@ -30,9 +31,43 @@ use embedded_graphics::{
 };
 use embedded_graphics_core::Drawable;
 
+use hal::gpio::GpioExt;
+use hal::gpio::Speed;
+
+use stm32f4xx_hal::{
+    prelude::*,
+    spi::{Mode as SpiMode, Phase, Polarity},
+};
+
 use hal::interrupt;
 
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
+
+macro_rules! fmc_pins {
+    ($($pin:expr),*) => {
+        (
+            $(
+                $pin.into_push_pull_output()
+                    .speed(Speed::VeryHigh)
+                    .into_alternate::<12>()
+                    .internal_pull_up(false)
+            ),*
+        )
+    };
+}
+
+macro_rules! ltdc_pins {
+    ($($pin:expr),*) => {
+        (
+            $(
+                $pin.into_push_pull_output()
+                    .speed(Speed::VeryHigh)
+                    .into_alternate::<14>()
+                    .internal_pull_up(false)
+            ),*
+        )
+    };
+}
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -71,89 +106,208 @@ fn main() -> ! {
 
     let mut delay = dp.TIM1.delay_us(&clocks);
 
+    let gpio_a = dp.GPIOA.split();
+    let gpio_b = dp.GPIOB.split();
+    let gpio_c = dp.GPIOC.split();
+    let gpio_d = dp.GPIOD.split();
+    let gpio_e = dp.GPIOE.split();
+    let gpio_f = dp.GPIOF.split();
+    let gpio_g = dp.GPIOG.split();
+
     // Init and test FMC/SDRAM that start at 0xD000_0000
+    // GPIO Config
+    #[rustfmt::skip]
+    let _ = fmc_pins!(
+        // A0-A11
+        gpio_f.pf0,
+        gpio_f.pf1,
+        gpio_f.pf2,
+        gpio_f.pf3,
+        gpio_f.pf4,
+        gpio_f.pf5,
+        gpio_f.pf12,
+        gpio_f.pf13,
+        gpio_f.pf14,
+        gpio_f.pf15,
+        gpio_g.pg0,
+        gpio_g.pg1,
+        // BA0-BA1
+        gpio_g.pg4,
+        gpio_g.pg5,
+        // D0-D15
+        gpio_d.pd14,
+        gpio_d.pd15,
+        gpio_d.pd0,
+        gpio_d.pd1,
+        gpio_e.pe7,
+        gpio_e.pe8,
+        gpio_e.pe9,
+        gpio_e.pe10,
+        gpio_e.pe11,
+        gpio_e.pe12,
+        gpio_e.pe13,
+        gpio_e.pe14,
+        gpio_e.pe15,
+        gpio_d.pd8,
+        gpio_d.pd9,
+        gpio_d.pd10,
+        // NBL0 - NBL1
+        gpio_e.pe0,
+        gpio_e.pe1,
+        // SDCKE1
+        gpio_b.pb5,
+        // SDCLK
+        gpio_g.pg8,
+        // SDNCAS
+        gpio_g.pg15,
+        // SDNE1
+        gpio_b.pb6,
+        // SDNRAS
+        gpio_f.pf11,
+        // SDNWE
+        gpio_c.pc0
+    );
+
     let sdram_ptr = Sdram::new(&mut delay);
+
     let sdram_size = 8 * 1024 * 1024; // 8MiB
     let sdram = unsafe {
         core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
     };
-    /*
-       for n in 0..ram_slice.len() {
-           ram_slice[n] = n as u16;
-       }
 
-       for n in 0..ram_slice.len() {
-           crate::assert_eq!(ram_slice[n], n as u16);
-       }
-    */
-    info!("FMC/SDRAM module seems to be functional!");
-    sdram.fill(0x00);
+    sdram.fill(0x0000);
 
-    /*
+    for n in 0..240 {
+        sdram[n] = 0x1f;
+        sdram[n + 10 * 240] = 0x1f;
+        sdram[n + 20 * 240] = 0x3f << 5;
+        sdram[n + 30 * 240] = 0x1f << 11;
+    }
 
-       for n in 0..240 {
-           sdram[n] = 0x1f;
-           sdram[n + 10 * 240] = 0x1f;
-           sdram[n + 20 * 240] = 0x3f << 5;
-           sdram[n + 30 * 240] = 0x1f << 11;
-       }
-
-       for n in 0..320 {
-           sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
-       }
-    */
+    for n in 0..320 {
+        sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
+    }
 
     // Init LCD/LTDC Display
-    let _ltdc_ok = Ltdc::new(&mut delay);
-    delay.release();
+    // GPIO Config
+    #[rustfmt::skip]
+    let _ = ltdc_pins!(
+        // R2-R7
+        gpio_c.pc10,
+        gpio_b.pb0,
+        gpio_a.pa11,
+        gpio_a.pa12,
+        gpio_b.pb1,
+        gpio_g.pg6,
+        // G2-G7
+        gpio_a.pa6,
+        gpio_g.pg10,
+        gpio_b.pb10,
+        gpio_b.pb11,
+        gpio_c.pc7,
+        gpio_d.pd3,
+        // B2-B7
+        gpio_d.pd6,
+        gpio_g.pg11,
+        gpio_g.pg12,
+        gpio_a.pa3,
+        gpio_b.pb8,
+        gpio_b.pb9,
+        // LCD_TFT HSYNC
+        gpio_c.pc6,
+        // LCDTFT VSYNC
+        gpio_a.pa4,
+        // LCD_TFT CLK
+        gpio_g.pg7,
+        // LCD_TFT DE
+        gpio_f.pf10
+    );
+
+    // SPI Config
+    // ILI931 LCD IO init
+    // GPIO init
+    // GPIOD is already enabled
+    // LCD RDX PD12
+    // LCD WRX PD 13
+    // LCD NCS PC2
+
+    // LCD SPI init
+    /* SPI baudrate is set to 5.6 MHz (PCLK2/SPI_BaudRatePrescaler = 84/16 = 5.25 MHz)
+       to verify these constraints:
+       - ILI9341 LCD SPI interface max baudrate is 10MHz for write and 6.66MHz for read
+       - l3gd20 SPI interface max baudrate is 10MHz for write/read
+       - PCLK2 frequency is set to 84 MHz
+    */
+    // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MOSI PF9
+
+    let mut lcd_rdx = gpio_d.pd12.into_push_pull_output().speed(Speed::VeryHigh);
+    let mut lcd_wrx = gpio_d.pd13.into_push_pull_output().speed(Speed::VeryHigh);
+    let mut lcd_ncs = gpio_c.pc2.into_push_pull_output().speed(Speed::VeryHigh);
+
+    lcd_rdx.set_high();
+    lcd_wrx.set_high();
+    lcd_ncs.set_high();
+
+    let lcd_clk = gpio_f
+        .pf7
+        .into_push_pull_output()
+        .speed(Speed::VeryHigh)
+        .into_alternate::<5>()
+        .internal_pull_up(false);
+
+    let lcd_miso = gpio_f
+        .pf8
+        .into_push_pull_output()
+        .speed(Speed::VeryHigh)
+        .into_alternate::<5>()
+        .internal_pull_up(false);
+
+    let lcd_mosi = gpio_f
+        .pf9
+        .into_push_pull_output()
+        .speed(Speed::VeryHigh)
+        .into_alternate::<5>()
+        .internal_pull_up(false);
+
+    let lcd_mode = SpiMode {
+        polarity: Polarity::IdleLow,
+        phase: Phase::CaptureOnFirstTransition,
+    };
+    let lcd_spi = dp
+        .SPI5
+        .spi((lcd_clk, lcd_miso, lcd_mosi), lcd_mode, 2.MHz(), &clocks);
+
+    let mut ltdc_dev = Ltdc { spi_dev: lcd_spi };
+    let _ = Ltdc::new(&mut ltdc_dev, &mut delay);
 
     let mut display = LtdcDisplay::new(sdram_ptr, 320, 240);
 
-    let _ = Circle::new(Point::new(80, 0), 240)
+    let _ = Circle::new(Point::new(100, 20), 240)
         .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
         .draw(&mut display);
 
     let style = MonoTextStyle::new(&FONT_9X18, Rgb565::RED);
     let _ = Text::new("Hello Rust!", Point::new(160, 120), style).draw(&mut display);
 
-    /*
-    let gpioa = dp.GPIOA.split();
-
-    let scl = gpioa.pa8.into_alternate_open_drain::<4>();
-
-    let gpioc = dp.GPIOC.split();
-    let sda = gpioc.pc9.into_alternate_open_drain::<4>();
-
-
-    // Touch Screen Init
-    let i2c_ts = dp.I2C3.i2c(
-        (scl, sda),
-        Mode::Standard {
-            frequency: 100.kHz(),
-        },
-        &clocks,
-    );
-
-       let mut ts_drv = TouchScreen { dev: i2c_ts };
-       let id = ts_drv.read_ts_id().unwrap();
-
-       // ts_drv.init(&mut delay);
-
-       info!("I2C3 TS ID:{:04x}", id);
-    */
+    // Init Touch Screen
+    // let mut ts_drv = TouchScreen {
+    //     dev: TouchScreen::init(&clocks, &mut delay),
+    // };
+    // let id = ts_drv.read_ts_id();
+    // info!("I2C3 TS ID:{:04x}", id);
+    delay.release();
 
     // Idle async app for heartbeat
-    dp.GPIOG
-        .moder
-        .modify(|_, w| w.moder13().output().moder14().output());
+    let mut led_green = gpio_g.pg13.into_push_pull_output();
+    let _led_red = gpio_g.pg14.into_push_pull_output();
 
     let blink = core::pin::pin!(async {
         let mut gate = lilos::time::PeriodicGate::from(PERIOD);
 
         loop {
-            dp.GPIOG.bsrr.write(|w| w.bs13().set_bit());
+            led_green.set_high();
             gate.next_time().await;
-            dp.GPIOG.bsrr.write(|w| w.br13().set_bit());
+            led_green.set_low();
             gate.next_time().await;
         }
     });

@@ -4,9 +4,39 @@ use {defmt_rtt as _, panic_probe as _};
 use hal::interrupt;
 use hal::pac::Interrupt;
 use hal::pac::NVIC;
+use hal::spi::Spi5;
 use stm32f4xx_hal as hal;
 
 use embedded_hal::blocking::delay::DelayUs;
+
+// const LCD_SWRESET: u32 = 0x01;
+const LCD_SLEEP_OUT: u8 = 0x11;
+// const LCD_WRITE_MEM_CONTINUE: u8 = 0x3c;
+// const LCD_PIXEL_FORMAT: u8 = 0x3a;
+const LCD_DISPLAY_ON: u8 = 0x29;
+
+const LCD_INTERFACE: u8 = 0xf6;
+const LCD_COLUMN_ADDR: u8 = 0x2a;
+const LCD_PAGE_ADDR: u8 = 0x2b;
+const LCD_POWERB: u8 = 0xCF;
+const LCD_POWER_SEQ: u8 = 0xED;
+const LCD_DTCA: u8 = 0xE8;
+const LCD_POWERA: u8 = 0xCB;
+const LCD_PRC: u8 = 0xF7;
+const LCD_DTCB: u8 = 0xEA;
+const LCD_FRMCTR1: u8 = 0xb1;
+const LCD_POWER1: u8 = 0xC0;
+const LCD_POWER2: u8 = 0xC1;
+const LCD_VCOM1: u8 = 0xC5;
+const LCD_VCOM2: u8 = 0xC7;
+const LCD_MAC: u8 = 0x36;
+const LCD_3GAMMA_EN: u8 = 0xF2;
+const LCD_RGB_INTERFACE: u8 = 0xb0;
+const LCD_DFC: u8 = 0xb6;
+const LCD_GRAM: u8 = 0x2C;
+const LCD_GAMMA: u8 = 0x26;
+const LCD_PGAMMA: u8 = 0xE0;
+const LCD_NGAMMA: u8 = 0xE1;
 
 macro_rules! lcd_wrx_high {
     () => {
@@ -36,318 +66,40 @@ macro_rules! lcd_cs_low {
     };
 }
 
-macro_rules! spi5_tx {
-    ($in:expr, $del:expr) => {
+macro_rules! spi_tx {
+    ($device:expr, $data:expr) => {
         lcd_cs_low!();
-        $del.delay_us(200);
-        let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
-        if spi5_dev.cr1.read().spe().bit_is_clear() {
-            spi5_dev.cr1.modify(|_, w| w.spe().set_bit());
-        }
-        spi5_dev.dr.write(|w| unsafe { w.bits($in) });
-        while spi5_dev.sr.read().bsy().bit_is_set() || spi5_dev.sr.read().txe().bit_is_clear() {}
-        $del.delay_us(200);
+        $device.write(&[$data]).unwrap();
         lcd_cs_high!();
     };
 }
 
 macro_rules! LCD_IO_WriteData {
-    ($in:expr, $del:expr) => {
+    ($device:expr, $data:expr) => {
         lcd_wrx_high!();
-        spi5_tx!($in, $del);
+        spi_tx!($device, $data);
     };
 }
 
 macro_rules! LCD_IO_WriteReg {
-    ($in:expr, $del:expr) => {
+    ($device:expr, $data:expr) => {
         lcd_wrx_low!();
-        spi5_tx!($in, $del);
+        spi_tx!($device, $data);
     };
 }
 
-pub struct Ltdc {}
+pub struct Ltdc {
+    pub spi_dev: Spi5,
+}
 impl Ltdc {
-    pub fn new<D>(delay: &mut D) -> bool
+    pub fn new<D>(&mut self, delay: &mut D) -> bool
     where
         D: DelayUs<u32>,
     {
+        let _ = self.spi_dev.write(&[0x00]);
+
         let rcc = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
-
-        /* GPIOs Configuration */
-        /*
-        +------------------------+-----------------------+----------------------------+
-        +                       LCD pins assignment                                   +
-        +------------------------+-----------------------+----------------------------+
-        |  LCD_TFT R2 <-> PC.10  |  LCD_TFT G2 <-> PA.06 |  LCD_TFT B2 <-> PD.06      |
-        |  LCD_TFT R3 <-> PB.00  |  LCD_TFT G3 <-> PG.10 |  LCD_TFT B3 <-> PG.11      |
-        |  LCD_TFT R4 <-> PA.11  |  LCD_TFT G4 <-> PB.10 |  LCD_TFT B4 <-> PG.12      |
-        |  LCD_TFT R5 <-> PA.12  |  LCD_TFT G5 <-> PB.11 |  LCD_TFT B5 <-> PA.03      |
-        |  LCD_TFT R6 <-> PB.01  |  LCD_TFT G6 <-> PC.07 |  LCD_TFT B6 <-> PB.08      |
-        |  LCD_TFT R7 <-> PG.06  |  LCD_TFT G7 <-> PD.03 |  LCD_TFT B7 <-> PB.09      |
-        -------------------------------------------------------------------------------
-                |  LCD_TFT HSYNC <-> PC.06  | LCDTFT VSYNC <->  PA.04 |
-                |  LCD_TFT CLK   <-> PG.07  | LCD_TFT DE   <->  PF.10 |
-                 -----------------------------------------------------
-        */
-
         rcc.apb2enr.modify(|_, w| w.ltdcen().set_bit());
-        rcc.ahb1enr.modify(|_, w| {
-            w.dma2den()
-                .set_bit()
-                .gpioaen()
-                .set_bit()
-                .gpioben()
-                .set_bit()
-                .gpiocen()
-                .set_bit()
-                .gpioden()
-                .set_bit()
-                .gpiofen()
-                .set_bit()
-                .gpiogen()
-                .set_bit()
-        });
-
-        let gpioa = unsafe { &*stm32f4xx_hal::pac::GPIOA::ptr() };
-        let gpiob = unsafe { &*stm32f4xx_hal::pac::GPIOB::ptr() };
-        let gpioc = unsafe { &*stm32f4xx_hal::pac::GPIOC::ptr() };
-        let gpiod = unsafe { &*stm32f4xx_hal::pac::GPIOD::ptr() };
-        let gpiof = unsafe { &*stm32f4xx_hal::pac::GPIOF::ptr() };
-        let gpiog = unsafe { &*stm32f4xx_hal::pac::GPIOG::ptr() };
-
-        /*
-                #[rustfmt::skip]
-                let _ = ltdc_pins!(
-                    // R2-R7
-                    gc.pc10,
-                    // gb.pb0,
-                    ga.pa11,
-                    ga.pa12,
-                    // gb.pb1,
-                    gg.pg6,
-                    // G2-G7
-                    ga.pa6,
-                    gg.pg10,
-                    gb.pb10,
-                    gb.pb11,
-                    gc.pc7,
-                    gd.pd3,
-                    // B2-B7
-                    gd.pd6,
-                    gg.pg11,
-                    gg.pg12,
-                    ga.pa3,
-                    gb.pb8,
-                    gb.pb9,
-                    // LCD_TFT HSYNC
-                    gc.pc6,
-                    // LCDTFT VSYNC
-                    ga.pa4,
-                    // LCD_TFT CLK
-                    gg.pg7,
-                    // LCD_TFT DE
-                    gf.pf10
-                );
-        */
-
-        // PA 3, 4, 6, 11, 12
-
-        gpioa.moder.modify(|_, w| {
-            w.moder3()
-                .alternate()
-                .moder4()
-                .alternate()
-                .moder6()
-                .alternate()
-                .moder11()
-                .alternate()
-                .moder12()
-                .alternate()
-        });
-
-        gpioa.otyper.modify(|_, w| {
-            w.ot3()
-                .push_pull()
-                .ot4()
-                .push_pull()
-                .ot6()
-                .push_pull()
-                .ot11()
-                .push_pull()
-                .ot12()
-                .push_pull()
-        });
-
-        gpioa
-            .afrl
-            .modify(|_, w| w.afrl3().af14().afrl4().af14().afrl6().af14());
-        gpioa.afrh.modify(|_, w| w.afrh11().af14().afrh12().af14());
-
-        gpioa.ospeedr.modify(|_, w| {
-            w.ospeedr3()
-                .very_high_speed()
-                .ospeedr4()
-                .very_high_speed()
-                .ospeedr6()
-                .very_high_speed()
-                .ospeedr11()
-                .very_high_speed()
-                .ospeedr12()
-                .very_high_speed()
-        });
-
-        // PB 0, 1, 8, 9, 10, 11
-
-        gpiob.moder.modify(|_, w| {
-            w.moder0()
-                .alternate()
-                .moder1()
-                .alternate()
-                .moder8()
-                .alternate()
-                .moder9()
-                .alternate()
-                .moder10()
-                .alternate()
-                .moder11()
-                .alternate()
-        });
-
-        gpiob.otyper.modify(|_, w| {
-            w.ot0()
-                .push_pull()
-                .ot1()
-                .push_pull()
-                .ot8()
-                .push_pull()
-                .ot9()
-                .push_pull()
-                .ot10()
-                .push_pull()
-                .ot11()
-                .push_pull()
-        });
-
-        gpiob.afrl.modify(|_, w| w.afrl0().af14().afrl1().af14());
-        gpiob.afrh.modify(|_, w| {
-            w.afrh8()
-                .af14()
-                .afrh9()
-                .af14()
-                .afrh10()
-                .af14()
-                .afrh11()
-                .af14()
-        });
-
-        gpiob.ospeedr.modify(|_, w| {
-            w.ospeedr0()
-                .very_high_speed()
-                .ospeedr1()
-                .very_high_speed()
-                .ospeedr8()
-                .very_high_speed()
-                .ospeedr9()
-                .very_high_speed()
-                .ospeedr10()
-                .very_high_speed()
-                .ospeedr11()
-                .very_high_speed()
-        });
-
-        // PC 6, 7, 10
-        gpioc.moder.modify(|_, w| {
-            w.moder6()
-                .alternate()
-                .moder7()
-                .alternate()
-                .moder10()
-                .alternate()
-        });
-        gpioc
-            .otyper
-            .modify(|_, w| w.ot6().push_pull().ot7().push_pull().ot10().push_pull());
-
-        gpioc.afrl.modify(|_, w| w.afrl6().af14().afrl7().af14());
-        gpioc.afrh.modify(|_, w| w.afrh10().af14());
-
-        gpioc.ospeedr.modify(|_, w| {
-            w.ospeedr6()
-                .very_high_speed()
-                .ospeedr7()
-                .very_high_speed()
-                .ospeedr10()
-                .very_high_speed()
-        });
-
-        // PD 3, 6
-        gpiod
-            .moder
-            .modify(|_, w| w.moder3().alternate().moder6().alternate());
-
-        gpiod
-            .otyper
-            .modify(|_, w| w.ot3().push_pull().ot6().push_pull());
-
-        gpiod.afrl.modify(|_, w| w.afrl3().af14().afrl6().af14());
-
-        gpiod
-            .ospeedr
-            .modify(|_, w| w.ospeedr3().very_high_speed().ospeedr6().very_high_speed());
-
-        // PF 10
-        gpiof.moder.modify(|_, w| w.moder10().bits(0x02));
-
-        gpiof.otyper.modify(|_, w| w.ot10().push_pull());
-
-        gpiof.afrh.modify(|_, w| w.afrh10().af14());
-
-        gpiof.ospeedr.modify(|_, w| w.ospeedr10().very_high_speed());
-
-        // PG 6, 7, 10, 11, 12
-        gpiog.moder.modify(|_, w| {
-            w.moder6()
-                .alternate()
-                .moder7()
-                .alternate()
-                .moder10()
-                .alternate()
-                .moder11()
-                .alternate()
-                .moder12()
-                .alternate()
-        });
-
-        gpiog.otyper.modify(|_, w| {
-            w.ot6()
-                .push_pull()
-                .ot7()
-                .push_pull()
-                .ot10()
-                .push_pull()
-                .ot11()
-                .push_pull()
-                .ot12()
-                .push_pull()
-        });
-
-        gpiog.afrl.modify(|_, w| w.afrl6().af14().afrl7().af14());
-        gpiog
-            .afrh
-            .modify(|_, w| w.afrh10().af14().afrh11().af14().afrh10().af12());
-
-        gpiog.ospeedr.modify(|_, w| {
-            w.ospeedr6()
-                .very_high_speed()
-                .ospeedr7()
-                .very_high_speed()
-                .ospeedr10()
-                .very_high_speed()
-                .ospeedr11()
-                .very_high_speed()
-                .ospeedr12()
-                .very_high_speed()
-        });
 
         // Clock config
         // PLLSAI_VCO Input = HSE_VALUE/PLL_M = 2 Mhz
@@ -358,11 +110,11 @@ impl Ltdc {
         while rcc.cr.read().pllsairdy().bit_is_set() {}
         rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
-            .modify(|_, w| unsafe { w.pllsain().bits(48).pllsaiq().bits(5).pllsair().bits(4) });
+            .modify(|_, w| unsafe { w.pllsain().bits(180).pllsair().bits(5) });
+        rcc.dckcfgr.modify(|_, w| unsafe { w.pllsaidivr().div8() });
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 
-        // LTDC config
         // LTDC config
         let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
 
@@ -389,19 +141,6 @@ impl Ltdc {
             .bccr
             .modify(|_, w| w.bcred().bits(0).bcgreen().bits(0).bcblue().bits(0));
 
-        /*
-               ltd_dev.ier.modify(|_, w| {
-                   w.fuie()
-                       .enabled()
-                       .terrie()
-                       .enabled()
-                       .rrie()
-                       .enabled()
-                       .lie()
-                       .enabled()
-               });
-        */
-
         ltd_dev
             .gcr
             .modify(|r, w| unsafe { w.bits(r.bits() | 0x2220) });
@@ -415,256 +154,142 @@ impl Ltdc {
         // unsafe { NVIC::unmask(Interrupt::DMA2D) };
 
         info!("LTDC configured!");
-        // delay.delay_us(5000_000);
-
-        // ILI931 LCD IO init
-        // GPIO init
-        // GPIOD is already enabled
-        // LCD RDX PD12
-        // LCD WRX PD 13
-        gpiod
-            .moder
-            .modify(|_, w| w.moder12().output().moder13().output());
-        gpiod
-            .otyper
-            .modify(|_, w| w.ot12().push_pull().ot13().push_pull());
-        gpiod.ospeedr.modify(|_, w| {
-            w.ospeedr12()
-                .very_high_speed()
-                .ospeedr13()
-                .very_high_speed()
-        });
-
-        // LCD NCS PC2
-        gpioc.moder.modify(|_, w| w.moder2().output());
-        gpioc.otyper.modify(|_, w| w.ot2().push_pull());
-        gpioc.ospeedr.modify(|_, w| w.ospeedr2().very_high_speed());
-
-        lcd_wrx_high!();
-        lcd_cs_high!();
-
-        // LCD SPI init
-        /* SPI baudrate is set to 5.6 MHz (PCLK2/SPI_BaudRatePrescaler = 84/16 = 5.25 MHz)
-           to verify these constraints:
-           - ILI9341 LCD SPI interface max baudrate is 10MHz for write and 6.66MHz for read
-           - l3gd20 SPI interface max baudrate is 10MHz for write/read
-           - PCLK2 frequency is set to 84 MHz
-        */
-        // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MSI PF9
-        rcc.apb2enr.modify(|_, w| w.spi5en().set_bit());
-
-        gpiof.moder.modify(|_, w| {
-            w.moder7()
-                .alternate()
-                .moder8()
-                .alternate()
-                .moder9()
-                .alternate()
-        });
-        gpiof
-            .otyper
-            .modify(|_, w| w.ot7().push_pull().ot8().push_pull().ot9().push_pull());
-
-        gpiof.afrl.modify(|_, w| w.afrl7().af5());
-        gpiof.afrh.modify(|_, w| w.afrh8().af5().afrh9().af5());
-
-        gpiof.ospeedr.modify(|_, w| {
-            w.ospeedr7()
-                .medium_speed()
-                .ospeedr8()
-                .medium_speed()
-                .ospeedr9()
-                .medium_speed()
-        });
-
-        // SPI5 init
-        let spi5_dev = unsafe { &*stm32f4xx_hal::pac::SPI5::ptr() };
-
-        spi5_dev.cr1.modify(|_, w| {
-            w.mstr()
-                .set_bit()
-                .dff()
-                .eight_bit()
-                .cpol()
-                .idle_low()
-                .cpha()
-                .first_edge()
-                .br()
-                .div16()
-                .ssi()
-                .set_bit()
-                .ssm()
-                .set_bit()
-        });
-
-        info!("LCD SP5 seems to be functional!");
-        // delay.delay_us(5000_000);
-
-        // const LCD_SWRESET: u32 = 0x01;
-        const LCD_SLEEP_OUT: u32 = 0x11;
-        // const LCD_WRITE_MEM_CONTINUE: u32 = 0x3c;
-        // const LCD_PIXEL_FORMAT: u32 = 0x3a;
-        const LCD_DISPLAY_ON: u32 = 0x29;
-
-        const LCD_INTERFACE: u32 = 0xf6;
-        const LCD_COLUMN_ADDR: u32 = 0x2a;
-        const LCD_PAGE_ADDR: u32 = 0x2b;
-        const LCD_POWERB: u32 = 0xCF;
-        const LCD_POWER_SEQ: u32 = 0xED;
-        const LCD_DTCA: u32 = 0xE8;
-        const LCD_POWERA: u32 = 0xCB;
-        const LCD_PRC: u32 = 0xF7;
-        const LCD_DTCB: u32 = 0xEA;
-        const LCD_FRMCTR1: u32 = 0xb1;
-        const LCD_POWER1: u32 = 0xC0;
-        const LCD_POWER2: u32 = 0xC1;
-        const LCD_VCOM1: u32 = 0xC5;
-        const LCD_VCOM2: u32 = 0xC7;
-        const LCD_MAC: u32 = 0x36;
-        const LCD_3GAMMA_EN: u32 = 0xF2;
-        const LCD_RGB_INTERFACE: u32 = 0xb0;
-        const LCD_DFC: u32 = 0xb6;
-        const LCD_GRAM: u32 = 0x2C;
-        const LCD_GAMMA: u32 = 0x26;
-        const LCD_PGAMMA: u32 = 0xE0;
-        const LCD_NGAMMA: u32 = 0xE1;
 
         // Configure LCD
-        LCD_IO_WriteReg!(0xCA, delay); //???
-        LCD_IO_WriteData!(0xC3, delay);
-        LCD_IO_WriteData!(0x08, delay);
-        LCD_IO_WriteData!(0x50, delay);
+        LCD_IO_WriteReg!(self.spi_dev, 0xCA); //???
+        LCD_IO_WriteData!(self.spi_dev, 0xC3);
+        LCD_IO_WriteData!(self.spi_dev, 0x08);
+        LCD_IO_WriteData!(self.spi_dev, 0x50);
 
-        LCD_IO_WriteReg!(LCD_POWERB, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0xC1, delay);
-        LCD_IO_WriteData!(0x30, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_POWERB);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0xC1);
+        LCD_IO_WriteData!(self.spi_dev, 0x30);
 
-        LCD_IO_WriteReg!(LCD_POWER_SEQ, delay);
-        LCD_IO_WriteData!(0x64, delay);
-        LCD_IO_WriteData!(0x03, delay);
-        LCD_IO_WriteData!(0x12, delay);
-        LCD_IO_WriteData!(0x81, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_POWER_SEQ);
+        LCD_IO_WriteData!(self.spi_dev, 0x64);
+        LCD_IO_WriteData!(self.spi_dev, 0x03);
+        LCD_IO_WriteData!(self.spi_dev, 0x12);
+        LCD_IO_WriteData!(self.spi_dev, 0x81);
 
-        LCD_IO_WriteReg!(LCD_DTCA, delay);
-        LCD_IO_WriteData!(0x85, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x78, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_DTCA);
+        LCD_IO_WriteData!(self.spi_dev, 0x85);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x78);
 
-        LCD_IO_WriteReg!(LCD_POWERA, delay);
-        LCD_IO_WriteData!(0x39, delay);
-        LCD_IO_WriteData!(0x2C, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x34, delay);
-        LCD_IO_WriteData!(0x02, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_POWERA);
+        LCD_IO_WriteData!(self.spi_dev, 0x39);
+        LCD_IO_WriteData!(self.spi_dev, 0x2C);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x34);
+        LCD_IO_WriteData!(self.spi_dev, 0x02);
 
-        LCD_IO_WriteReg!(LCD_PRC, delay);
-        LCD_IO_WriteData!(0x20, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_PRC);
+        LCD_IO_WriteData!(self.spi_dev, 0x20);
 
-        LCD_IO_WriteReg!(LCD_DTCB, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_DTCB);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
 
-        LCD_IO_WriteReg!(LCD_FRMCTR1, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x1B, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_FRMCTR1);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x1B);
 
-        LCD_IO_WriteReg!(LCD_DFC, delay);
-        LCD_IO_WriteData!(0x0A, delay);
-        LCD_IO_WriteData!(0xA2, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_DFC);
+        LCD_IO_WriteData!(self.spi_dev, 0x0A);
+        LCD_IO_WriteData!(self.spi_dev, 0xA2);
 
-        LCD_IO_WriteReg!(LCD_POWER1, delay);
-        LCD_IO_WriteData!(0x10, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_POWER1);
+        LCD_IO_WriteData!(self.spi_dev, 0x10);
 
-        LCD_IO_WriteReg!(LCD_POWER2, delay);
-        LCD_IO_WriteData!(0x10, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_POWER2);
+        LCD_IO_WriteData!(self.spi_dev, 0x10);
 
-        LCD_IO_WriteReg!(LCD_VCOM1, delay);
-        LCD_IO_WriteData!(0x45, delay);
-        LCD_IO_WriteData!(0x15, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_VCOM1);
+        LCD_IO_WriteData!(self.spi_dev, 0x45);
+        LCD_IO_WriteData!(self.spi_dev, 0x15);
 
-        LCD_IO_WriteReg!(LCD_VCOM2, delay);
-        LCD_IO_WriteData!(0x90, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_VCOM2);
+        LCD_IO_WriteData!(self.spi_dev, 0x90);
 
-        LCD_IO_WriteReg!(LCD_MAC, delay);
-        LCD_IO_WriteData!(0xC8, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_MAC);
+        LCD_IO_WriteData!(self.spi_dev, 0xC8);
 
-        LCD_IO_WriteReg!(LCD_3GAMMA_EN, delay);
-        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_3GAMMA_EN);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
 
-        LCD_IO_WriteReg!(LCD_RGB_INTERFACE, delay);
-        LCD_IO_WriteData!(0xC2, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_RGB_INTERFACE);
+        LCD_IO_WriteData!(self.spi_dev, 0xC2);
 
-        LCD_IO_WriteReg!(LCD_DFC, delay);
-        LCD_IO_WriteData!(0x0A, delay);
-        LCD_IO_WriteData!(0xA7, delay);
-        LCD_IO_WriteData!(0x27, delay);
-        LCD_IO_WriteData!(0x04, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_DFC);
+        LCD_IO_WriteData!(self.spi_dev, 0x0A);
+        LCD_IO_WriteData!(self.spi_dev, 0xA7);
+        LCD_IO_WriteData!(self.spi_dev, 0x27);
+        LCD_IO_WriteData!(self.spi_dev, 0x04);
 
-        LCD_IO_WriteReg!(LCD_COLUMN_ADDR, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0xEF, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_COLUMN_ADDR);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0xEF);
 
-        LCD_IO_WriteReg!(LCD_PAGE_ADDR, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x01, delay);
-        LCD_IO_WriteData!(0x3F, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_PAGE_ADDR);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x01);
+        LCD_IO_WriteData!(self.spi_dev, 0x3F);
 
-        LCD_IO_WriteReg!(LCD_INTERFACE, delay);
-        LCD_IO_WriteData!(0x01, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x06, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_INTERFACE);
+        LCD_IO_WriteData!(self.spi_dev, 0x01);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x06);
 
-        LCD_IO_WriteReg!(LCD_GRAM, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_GRAM);
         delay.delay_us(200_000);
 
-        LCD_IO_WriteReg!(LCD_GAMMA, delay);
-        LCD_IO_WriteData!(0x01, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_GAMMA);
+        LCD_IO_WriteData!(self.spi_dev, 0x01);
 
-        LCD_IO_WriteReg!(LCD_PGAMMA, delay);
-        LCD_IO_WriteData!(0x0F, delay);
-        LCD_IO_WriteData!(0x29, delay);
-        LCD_IO_WriteData!(0x24, delay);
-        LCD_IO_WriteData!(0x0C, delay);
-        LCD_IO_WriteData!(0x0E, delay);
-        LCD_IO_WriteData!(0x09, delay);
-        LCD_IO_WriteData!(0x4E, delay);
-        LCD_IO_WriteData!(0x78, delay);
-        LCD_IO_WriteData!(0x3C, delay);
-        LCD_IO_WriteData!(0x09, delay);
-        LCD_IO_WriteData!(0x13, delay);
-        LCD_IO_WriteData!(0x05, delay);
-        LCD_IO_WriteData!(0x17, delay);
-        LCD_IO_WriteData!(0x11, delay);
-        LCD_IO_WriteData!(0x00, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_PGAMMA);
+        LCD_IO_WriteData!(self.spi_dev, 0x0F);
+        LCD_IO_WriteData!(self.spi_dev, 0x29);
+        LCD_IO_WriteData!(self.spi_dev, 0x24);
+        LCD_IO_WriteData!(self.spi_dev, 0x0C);
+        LCD_IO_WriteData!(self.spi_dev, 0x0E);
+        LCD_IO_WriteData!(self.spi_dev, 0x09);
+        LCD_IO_WriteData!(self.spi_dev, 0x4E);
+        LCD_IO_WriteData!(self.spi_dev, 0x78);
+        LCD_IO_WriteData!(self.spi_dev, 0x3C);
+        LCD_IO_WriteData!(self.spi_dev, 0x09);
+        LCD_IO_WriteData!(self.spi_dev, 0x13);
+        LCD_IO_WriteData!(self.spi_dev, 0x05);
+        LCD_IO_WriteData!(self.spi_dev, 0x17);
+        LCD_IO_WriteData!(self.spi_dev, 0x11);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
 
-        LCD_IO_WriteReg!(LCD_NGAMMA, delay);
-        LCD_IO_WriteData!(0x00, delay);
-        LCD_IO_WriteData!(0x16, delay);
-        LCD_IO_WriteData!(0x1B, delay);
-        LCD_IO_WriteData!(0x04, delay);
-        LCD_IO_WriteData!(0x11, delay);
-        LCD_IO_WriteData!(0x07, delay);
-        LCD_IO_WriteData!(0x31, delay);
-        LCD_IO_WriteData!(0x33, delay);
-        LCD_IO_WriteData!(0x42, delay);
-        LCD_IO_WriteData!(0x05, delay);
-        LCD_IO_WriteData!(0x0C, delay);
-        LCD_IO_WriteData!(0x0A, delay);
-        LCD_IO_WriteData!(0x28, delay);
-        LCD_IO_WriteData!(0x2F, delay);
-        LCD_IO_WriteData!(0x0F, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_NGAMMA);
+        LCD_IO_WriteData!(self.spi_dev, 0x00);
+        LCD_IO_WriteData!(self.spi_dev, 0x16);
+        LCD_IO_WriteData!(self.spi_dev, 0x1B);
+        LCD_IO_WriteData!(self.spi_dev, 0x04);
+        LCD_IO_WriteData!(self.spi_dev, 0x11);
+        LCD_IO_WriteData!(self.spi_dev, 0x07);
+        LCD_IO_WriteData!(self.spi_dev, 0x31);
+        LCD_IO_WriteData!(self.spi_dev, 0x33);
+        LCD_IO_WriteData!(self.spi_dev, 0x42);
+        LCD_IO_WriteData!(self.spi_dev, 0x05);
+        LCD_IO_WriteData!(self.spi_dev, 0x0C);
+        LCD_IO_WriteData!(self.spi_dev, 0x0A);
+        LCD_IO_WriteData!(self.spi_dev, 0x28);
+        LCD_IO_WriteData!(self.spi_dev, 0x2F);
+        LCD_IO_WriteData!(self.spi_dev, 0x0F);
 
-        LCD_IO_WriteReg!(LCD_SLEEP_OUT, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_SLEEP_OUT);
         delay.delay_us(200_000);
 
-        LCD_IO_WriteReg!(LCD_DISPLAY_ON, delay);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_DISPLAY_ON);
         // GRAM start writing
-        LCD_IO_WriteReg!(LCD_GRAM, delay);
-        // delay.delay_us(5000_000);
+        LCD_IO_WriteReg!(self.spi_dev, LCD_GRAM);
 
         // Layer Config
         // Taken hard coded

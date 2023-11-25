@@ -24,7 +24,8 @@ embedded-graphics = "0.8.1"
 embedded-graphics-core = "0.4.0"
 
 [dependencies.stm32f4xx-hal]
-version = "0.17.1"
+git = "https://github.com/ierturk/stm32f4xx-hal.git"
+# version = "0.17.1"
 features = ["stm32f429"]
 
 # [dependencies.stm32f4]

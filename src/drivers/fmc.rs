@@ -1,5 +1,3 @@
-use hal::gpio::GpioExt;
-use hal::gpio::Speed;
 use hal::interrupt;
 use hal::pac::Interrupt;
 use hal::pac::Peripherals as device;
@@ -7,19 +5,6 @@ use hal::pac::NVIC;
 use stm32f4xx_hal as hal;
 
 use embedded_hal::blocking::delay::DelayUs;
-
-macro_rules! fmc_pins {
-    ($($pin:expr),*) => {
-        (
-            $(
-                $pin.into_push_pull_output()
-                    .speed(Speed::VeryHigh)
-                    .into_alternate::<12>()
-                    .internal_pull_up(false)
-            ),*
-        )
-    };
-}
 
 pub struct Sdram {}
 impl Sdram {
@@ -30,97 +15,6 @@ impl Sdram {
         let dp = unsafe { device::steal() };
         dp.RCC.ahb3enr.modify(|_, w| w.fmcen().enabled());
         dp.RCC.ahb1enr.modify(|_, w| w.dma2den().enabled());
-
-        /*-- GPIOs Configuration -----------------------------------------------------*/
-        /*
-         +-------------------+--------------------+--------------------+--------------------+
-         +                       SDRAM pins assignment                                      +
-         +-------------------+--------------------+--------------------+--------------------+
-         | PD0  <-> FMC_D2   | PE0  <-> FMC_NBL0  | PF0  <-> FMC_A0    | PG0  <-> FMC_A10   |
-         | PD1  <-> FMC_D3   | PE1  <-> FMC_NBL1  | PF1  <-> FMC_A1    | PG1  <-> FMC_A11   |
-         | PD8  <-> FMC_D13  | PE7  <-> FMC_D4    | PF2  <-> FMC_A2    | PG8  <-> FMC_SDCLK |
-         | PD9  <-> FMC_D14  | PE8  <-> FMC_D5    | PF3  <-> FMC_A3    | PG15 <-> FMC_NCAS  |
-         | PD10 <-> FMC_D15  | PE9  <-> FMC_D6    | PF4  <-> FMC_A4    |--------------------+
-         | PD14 <-> FMC_D0   | PE10 <-> FMC_D7    | PF5  <-> FMC_A5    |
-         | PD15 <-> FMC_D1   | PE11 <-> FMC_D8    | PF11 <-> FMC_NRAS  |
-         +-------------------| PE12 <-> FMC_D9    | PF12 <-> FMC_A6    |
-                             | PE13 <-> FMC_D10   | PF13 <-> FMC_A7    |
-                             | PE14 <-> FMC_D11   | PF14 <-> FMC_A8    |
-                             | PE15 <-> FMC_D12   | PF15 <-> FMC_A9    |
-         +-------------------+--------------------+--------------------+
-         | PB5 <-> FMC_SDCKE1|
-         | PB6 <-> FMC_SDNE1 |
-         | PC0 <-> FMC_SDNWE |
-         +-------------------+
-
-        */
-
-        // SDRAM GPIO Init
-        dp.RCC.ahb1enr.modify(|_, w| w.gpioben().enabled());
-        dp.RCC.ahb1enr.modify(|_, w| w.gpiocen().enabled());
-        dp.RCC.ahb1enr.modify(|_, w| w.gpioden().enabled());
-        dp.RCC.ahb1enr.modify(|_, w| w.gpioeen().enabled());
-        dp.RCC.ahb1enr.modify(|_, w| w.gpiofen().enabled());
-        dp.RCC.ahb1enr.modify(|_, w| w.gpiogen().enabled());
-
-        let gb = dp.GPIOB.split();
-        let gc = dp.GPIOC.split();
-        let gd = dp.GPIOD.split();
-        let ge = dp.GPIOE.split();
-        let gf = dp.GPIOF.split();
-        let gg = dp.GPIOG.split();
-
-        #[rustfmt::skip]
-        let _fmc_pins = fmc_pins!(
-            // A0-A11
-            gf.pf0,
-            gf.pf1,
-            gf.pf2,
-            gf.pf3,
-            gf.pf4,
-            gf.pf5,
-            gf.pf12,
-            gf.pf13,
-            gf.pf14,
-            gf.pf15,
-            gg.pg0,
-            gg.pg1,
-            // BA0-BA1
-            gg.pg4,
-            gg.pg5,
-            // D0-D31
-            gd.pd14,
-            gd.pd15,
-            gd.pd0,
-            gd.pd1,
-            ge.pe7,
-            ge.pe8,
-            ge.pe9,
-            ge.pe10,
-            ge.pe11,
-            ge.pe12,
-            ge.pe13,
-            ge.pe14,
-            ge.pe15,
-            gd.pd8,
-            gd.pd9,
-            gd.pd10,
-            // NBL0 - NBL1
-            ge.pe0,
-            ge.pe1,
-            // SDCKE1
-            gb.pb5,
-            // SDCLK
-            gg.pg8,
-            // SDNCAS
-            gg.pg15,
-            // SDNE1
-            gb.pb6,
-            // SDNRAS
-            gf.pf11,
-            // SDNWE
-            gc.pc0
-        );
 
         // SDRAM DMA Init
         // Deinit
