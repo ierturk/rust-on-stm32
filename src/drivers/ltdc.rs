@@ -69,6 +69,7 @@ macro_rules! lcd_cs_low {
 macro_rules! spi_tx {
     ($device:expr, $data:expr) => {
         lcd_cs_low!();
+        while $device.is_busy() || $device.is_tx_empty() == false {}
         $device.write(&[$data]).unwrap();
         lcd_cs_high!();
     };
@@ -111,7 +112,7 @@ impl Ltdc {
         rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
             .modify(|_, w| unsafe { w.pllsain().bits(180).pllsair().bits(5) });
-        rcc.dckcfgr.modify(|_, w| unsafe { w.pllsaidivr().div8() });
+        rcc.dckcfgr.modify(|_, w| unsafe { w.pllsaidivr().div16() });
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 
