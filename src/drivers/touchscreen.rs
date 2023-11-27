@@ -1,4 +1,4 @@
-use defmt::*;
+// use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
 use hal::i2c::I2c;
@@ -28,7 +28,7 @@ const STMPE811_REG_TSC_FRACT_XYZ: u8 = 0x56;
 const STMPE811_REG_TSC_I_DRIVE: u8 = 0x58;
 const STMPE811_REG_TSC_CTRL: u8 = 0x40;
 const STMPE811_REG_INT_STA: u8 = 0x0B;
-const STMPE811_REG_TSC_DATA_NON_INC: u8 = 0xD7;
+// const STMPE811_REG_TSC_DATA_NON_INC: u8 = 0xD7;
 
 pub struct TouchScreen {
     pub i2c_dev: I2c<I2C3>,
@@ -40,12 +40,9 @@ impl TouchScreen {
         D: DelayUs<u32>,
     {
         let mut rx_buffer = [0_u8; 2];
-        let mut rx_byte: u8 = 0;
 
         self.i2c_dev.write(STMPE811_ADDR, &[STMPE811_ID]).unwrap();
         self.i2c_dev.read(STMPE811_ADDR, &mut rx_buffer).unwrap();
-
-        info!("I2C3 TS ID:{:04x}", rx_buffer);
 
         // Reset TS Device
         self.i2c_dev
@@ -158,6 +155,7 @@ impl TouchScreen {
         /* Wait for 2 ms delay */
         delay.delay_us(2_000_u32);
 
+        /*
         loop {
             let mut rx_xyz = [0_u8; 4];
             self.i2c_dev
@@ -184,6 +182,7 @@ impl TouchScreen {
             info!("TS XYZ: {} - {} - {}", x, y, z);
             delay.delay_us(1_000_000_u32);
         }
+         */
 
         return true;
     }

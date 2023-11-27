@@ -1,4 +1,4 @@
-use defmt::*;
+// use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 
 use hal::interrupt;
@@ -93,7 +93,7 @@ pub struct Ltdc {
     pub spi_dev: Spi5,
 }
 impl Ltdc {
-    pub fn new<D>(&mut self, delay: &mut D) -> bool
+    pub fn new<D>(&mut self, fb_ptr: *const u16, delay: &mut D) -> bool
     where
         D: DelayUs<u32>,
     {
@@ -111,8 +111,8 @@ impl Ltdc {
         while rcc.cr.read().pllsairdy().bit_is_set() {}
         // rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
-            .modify(|_, w| unsafe { w.pllsain().bits(96).pllsaiq().bits(4).pllsair().bits(4) });
-        rcc.dckcfgr.modify(|_, w| unsafe { w.pllsaidivr().bits(2) });
+            .modify(|_, w| unsafe { w.pllsain().bits(50).pllsair().bits(5) });
+        rcc.dckcfgr.modify(|_, w| w.pllsaidivr().div2());
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 
@@ -153,8 +153,6 @@ impl Ltdc {
         unsafe { NVIC::unmask(Interrupt::LCD_TFT) };
         unsafe { NVIC::unmask(Interrupt::LCD_TFT_1) };
         // unsafe { NVIC::unmask(Interrupt::DMA2D) };
-
-        info!("LTDC configured!");
 
         // Configure LCD
         LCD_IO_WriteReg!(self.spi_dev, 0xCA); //???
@@ -335,7 +333,7 @@ impl Ltdc {
         ltd_dev
             .layer1
             .cfbar
-            .modify(|_, w| w.cfbadd().bits(0xD000_0000));
+            .modify(|_, w| w.cfbadd().bits(fb_ptr as u32));
 
         // Configure the color frame buffer pitch in byte
         ltd_dev
