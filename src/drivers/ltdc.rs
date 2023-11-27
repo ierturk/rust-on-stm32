@@ -109,10 +109,10 @@ impl Ltdc {
         // LTDC clock frequency = PLLLCDCLK / LTDC_PLLSAI_DIVR_8 = 48/8 = 6Mhz
         rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         while rcc.cr.read().pllsairdy().bit_is_set() {}
-        rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
+        // rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
-            .modify(|_, w| unsafe { w.pllsain().bits(180).pllsair().bits(5) });
-        rcc.dckcfgr.modify(|_, w| unsafe { w.pllsaidivr().div16() });
+            .modify(|_, w| unsafe { w.pllsain().bits(96).pllsaiq().bits(4).pllsair().bits(4) });
+        rcc.dckcfgr.modify(|_, w| unsafe { w.pllsaidivr().bits(2) });
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 

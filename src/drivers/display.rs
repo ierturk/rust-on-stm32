@@ -30,7 +30,8 @@ impl DrawTarget for LtdcDisplay {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        let fb = unsafe { core::slice::from_raw_parts_mut(self.fb_ptr, self.width * self.height) };
+        let fb =
+            unsafe { core::slice::from_raw_parts_mut(self.fb_ptr, self.width * self.height + 3) };
 
         for Pixel(point, color) in pixels {
             if self.bounding_box().contains(point) {

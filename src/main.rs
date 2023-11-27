@@ -41,6 +41,23 @@ use stm32f4xx_hal::{
 
 use hal::interrupt;
 
+use embedded_graphics::geometry::Size;
+use embedded_graphics::mono_font::ascii;
+use embedded_graphics::prelude::WebColors;
+use embedded_graphics::primitives::StyledDrawable;
+
+use kolibri_embedded_gui::button::Button;
+use kolibri_embedded_gui::checkbox::Checkbox;
+use kolibri_embedded_gui::icon::IconWidget;
+use kolibri_embedded_gui::iconbutton::IconButton;
+use kolibri_embedded_gui::icons::{size12px, size24px, size32px};
+use kolibri_embedded_gui::label::Label;
+use kolibri_embedded_gui::prelude::*;
+use kolibri_embedded_gui::smartstate::{Smartstate, SmartstateProvider};
+use kolibri_embedded_gui::spacer::Spacer;
+use kolibri_embedded_gui::style::{medsize_rgb565_debug_style, medsize_rgb565_style};
+use kolibri_embedded_gui::ui::{Interaction, Ui};
+
 const PERIOD: lilos::time::Millis = lilos::time::Millis(1000);
 
 macro_rules! fmc_pins {
@@ -94,7 +111,7 @@ fn main() -> ! {
         .hclk(168.MHz())
         .pclk1(42.MHz())
         .pclk2(84.MHz())
-        .require_pll48clk()
+        // .require_pll48clk()
         .freeze();
 
     let rcc_r = unsafe { &*stm32f4xx_hal::pac::RCC::ptr() };
@@ -175,18 +192,21 @@ fn main() -> ! {
         core::slice::from_raw_parts_mut(sdram_ptr, sdram_size / core::mem::size_of::<u16>())
     };
 
-    sdram.fill(0x0000);
+    /*
+        // SDRAM Test
+       sdram.fill(0x0000);
 
-    for n in 0..240 {
-        sdram[n] = 0x1f;
-        sdram[n + 10 * 240] = 0x1f;
-        sdram[n + 20 * 240] = 0x3f << 5;
-        sdram[n + 30 * 240] = 0x1f << 11;
-    }
+       for n in 0..240 {
+           sdram[n] = 0x1f;
+           sdram[n + 10 * 240] = 0x1f;
+           sdram[n + 20 * 240] = 0x3f << 5;
+           sdram[n + 30 * 240] = 0x1f << 11;
+       }
 
-    for n in 0..320 {
-        sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
-    }
+       for n in 0..320 {
+           sdram[n * 240 + 120] = 0x1f | (0x3f << 5);
+       }
+    */
 
     // Init LCD/LTDC Display
     // GPIO Config
@@ -282,24 +302,44 @@ fn main() -> ! {
 
     let mut display = LtdcDisplay::new(sdram_ptr, 320, 240);
 
-    let _ = Circle::new(Point::new(100, 20), 240)
-        .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
-        .draw(&mut display);
+    /*
+       // Display Test
+       let _ = Circle::new(Point::new(100, 20), 240)
+           .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
+           .draw(&mut display);
 
-    let style = MonoTextStyle::new(&FONT_9X18, Rgb565::RED);
-    let _ = Text::new("Hello Rust!", Point::new(160, 120), style).draw(&mut display);
+       let style = MonoTextStyle::new(&FONT_9X18, Rgb565::RED);
+       let _ = Text::new("Hello Rust!", Point::new(160, 120), style).draw(&mut display);
+    */
+
+    // kolibri test
+    // counter for incrementing thingy
+    let mut i = 0u8;
+
+    let mut ui = Ui::new_fullscreen(&mut display, medsize_rgb565_style());
+    ui.clear_background().unwrap();
+
+    ui.add(Label::new("Basic Example").with_font(ascii::FONT_10X20));
+
+    ui.add(Label::new("Basic Counter (7LOC)"));
+
+    if ui.add_horizontal(Button::new("-")).clicked() {
+        i = i.saturating_sub(1);
+    }
+
+    let mut buf = [0u8; 64];
+    let s: &str = format_no_std::show(&mut buf, format_args!("Clicked {} times", i)).unwrap();
+
+    ui.add_horizontal(Label::new(s.as_ref()));
+    if ui.add_horizontal(Button::new("+")).clicked() {
+        i = i.saturating_add(1);
+    }
 
     // Init Touch Screen
-    // let mut ts_drv = TouchScreen {
-    //     dev: TouchScreen::init(&clocks, &mut delay),
-    // };
-    // let id = ts_drv.read_ts_id();
-    // info!("I2C3 TS ID:{:04x}", id);
-
     let i2c3_scl = gpio_a.pa8.into_alternate_open_drain::<4>();
     let i2c3_sda = gpio_c.pc9.into_alternate_open_drain::<4>();
 
-    let mut i2c3_dev = dp.I2C3.i2c(
+    let i2c3_dev = dp.I2C3.i2c(
         (i2c3_scl, i2c3_sda),
         Mode::Standard {
             frequency: 100.kHz(),
