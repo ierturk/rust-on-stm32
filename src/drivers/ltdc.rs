@@ -111,8 +111,8 @@ impl Ltdc {
         while rcc.cr.read().pllsairdy().bit_is_set() {}
         // rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         rcc.pllsaicfgr
-            .modify(|_, w| unsafe { w.pllsain().bits(50).pllsair().bits(5) });
-        rcc.dckcfgr.modify(|_, w| w.pllsaidivr().div2());
+            .modify(|_, w| unsafe { w.pllsain().bits(95).pllsair().bits(5) });
+        rcc.dckcfgr.modify(|_, w| w.pllsaidivr().div4());
         rcc.cr.modify(|_, w| w.pllsaion().set_bit());
         while rcc.cr.read().pllsairdy().bit_is_clear() {}
 
@@ -346,63 +346,64 @@ impl Ltdc {
             .layer1
             .cfblnr
             .modify(|_, w| w.cfblnbr().bits(0x0140));
+        /*
+               // Layer 2
+               // Horizontal start
+               ltd_dev
+                   .layer2
+                   .whpcr
+                   .modify(|_, w| w.whsppos().bits(0x010d).whstpos().bits(0x1e));
 
-        // Layer 2
-        // Horizontal start
-        ltd_dev
-            .layer2
-            .whpcr
-            .modify(|_, w| w.whsppos().bits(0x010d).whstpos().bits(0x1e));
+               // Vertical start
+               ltd_dev
+                   .layer2
+                   .wvpcr
+                   .modify(|_, w| w.wvsppos().bits(0x0143).wvstpos().bits(0x04));
 
-        // Vertical start
-        ltd_dev
-            .layer2
-            .wvpcr
-            .modify(|_, w| w.wvsppos().bits(0x0143).wvstpos().bits(0x04));
+               // Pixel format
+               ltd_dev.layer2.pfcr.modify(|_, w| w.pf().bits(0x02));
 
-        // Pixel format
-        ltd_dev.layer2.pfcr.modify(|_, w| w.pf().bits(0x02));
+               // Default colours
+               ltd_dev.layer2.dccr.modify(|_, w| {
+                   w.dcalpha()
+                       .bits(0x00)
+                       .dcred()
+                       .bits(0x00)
+                       .dcgreen()
+                       .bits(0x00)
+                       .dcblue()
+                       .bits(0x00)
+               });
 
-        // Default colours
-        ltd_dev.layer2.dccr.modify(|_, w| {
-            w.dcalpha()
-                .bits(0x00)
-                .dcred()
-                .bits(0x00)
-                .dcgreen()
-                .bits(0x00)
-                .dcblue()
-                .bits(0x00)
-        });
+               // Specifies the constant alpha value
+               ltd_dev.layer2.cacr.modify(|_, w| w.consta().bits(0xff));
 
-        // Specifies the constant alpha value
-        ltd_dev.layer2.cacr.modify(|_, w| w.consta().bits(0xff));
+               // Specifies the blending factors
+               ltd_dev
+                   .layer2
+                   .bfcr
+                   .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
 
-        // Specifies the blending factors
-        ltd_dev
-            .layer2
-            .bfcr
-            .modify(|_, w| unsafe { w.bf1().bits(0x06).bf2().bits(0x07) });
+               // Configure the color frame buffer start address
+               ltd_dev
+                   .layer2
+                   .cfbar
+                   .modify(|_, w| w.cfbadd().bits(fb_ptr_l2 as u32));
 
-        // Configure the color frame buffer start address
-        ltd_dev
-            .layer2
-            .cfbar
-            .modify(|_, w| w.cfbadd().bits(fb_ptr_l2 as u32));
+               // Configure the color frame buffer pitch in byte
+               ltd_dev
+                   .layer2
+                   .cfblr
+                   .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
 
-        // Configure the color frame buffer pitch in byte
-        ltd_dev
-            .layer2
-            .cfblr
-            .modify(|_, w| w.cfbll().bits(0x01e3).cfbp().bits(0x01e0));
+               // Configure the frame buffer line number
+               ltd_dev
+                   .layer2
+                   .cfblnr
+                   .modify(|_, w| w.cfblnbr().bits(0x0140));
+        */
 
-        // Configure the frame buffer line number
-        ltd_dev
-            .layer2
-            .cfblnr
-            .modify(|_, w| w.cfblnbr().bits(0x0140));
-
-        // Enable Layers 1 , Disble Layer 2
+        // Enable Layers 1 , Disable Layer 2
         // Enable LTDC_Layer by setting LEN bit
         ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
         ltd_dev.layer2.cr.modify(|_, w| w.len().disabled());

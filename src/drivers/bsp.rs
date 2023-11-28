@@ -54,7 +54,7 @@ macro_rules! fmc_pins {
                 $pin.into_push_pull_output()
                     .speed(Speed::VeryHigh)
                     .into_alternate::<12>()
-                    .internal_pull_up(true)
+                    .internal_pull_up(false)
             ),*
         )
     };
@@ -67,7 +67,7 @@ macro_rules! ltdc_pins_af14 {
                 $pin.into_push_pull_output()
                     .speed(Speed::VeryHigh)
                     .into_alternate::<14>()
-                    .internal_pull_up(true)
+                    .internal_pull_up(false)
             ),*
         )
     };
@@ -80,7 +80,7 @@ macro_rules! ltdc_pins_af9 {
                 $pin.into_push_pull_output()
                     .speed(Speed::VeryHigh)
                     .into_alternate::<9>()
-                    .internal_pull_up(true)
+                    .internal_pull_up(false)
             ),*
         )
     };
@@ -218,6 +218,7 @@ impl Default for StmBackend {
 
         // Init LCD/LTDC Display
         // GPIO Config
+        // LTDC_AF14
         #[rustfmt::skip]
         let _ = ltdc_pins_af14!(
             // R2-R7
@@ -229,7 +230,7 @@ impl Default for StmBackend {
             gpio_g.pg6,
             // G2-G7
             gpio_a.pa6,
-            gpio_g.pg10,
+            // gpio_g.pg10,
             gpio_b.pb10,
             gpio_b.pb11,
             gpio_c.pc7,
@@ -237,7 +238,7 @@ impl Default for StmBackend {
             // B2-B7
             gpio_d.pd6,
             gpio_g.pg11,
-            gpio_g.pg12,
+            // gpio_g.pg12,
             gpio_a.pa3,
             gpio_b.pb8,
             gpio_b.pb9,
@@ -251,10 +252,13 @@ impl Default for StmBackend {
             gpio_f.pf10
         );
 
+        // LTDC_AF9
         #[rustfmt::skip]
         let _ = ltdc_pins_af9!(
-            gpio_b.pb0, // R3
-            gpio_b.pb1  // R6
+            gpio_b.pb0,     // R3
+            gpio_b.pb1,     // R6
+            gpio_g.pg10,    // G3
+            gpio_g.pg12     // B4
         );
 
         // SPI Config
@@ -381,30 +385,37 @@ impl slint::platform::Platform for StmBackend {
                 DISPLAY_WIDTH as u32,
                 DISPLAY_HEIGHT as u32,
             ));
+
+        let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
+
         loop {
             slint::platform::update_timers_and_animations();
 
             if let Some(window) = self.window.borrow().clone() {
                 window.draw_if_needed(|renderer| {
+                    while ltd_dev.srcr.read().vbr().bit_is_set() {}
                     renderer.render(work_fb, DISPLAY_WIDTH);
                     display_refreshed = true;
                 });
-                inner.delay.delay_ms(10_u16);
-                // Swap Layers
+                // Swap FrameBuffer
                 if display_refreshed {
-                    let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
-                    if ltd_dev.layer1.cr.read().len().bit_is_set() {
-                        ltd_dev.layer1.cr.modify(|_, w| w.len().disabled());
-                        ltd_dev.layer2.cr.modify(|_, w| w.len().enabled());
+                    if work_fb.as_ptr() == fb2.as_ptr() {
+                        ltd_dev
+                            .layer1
+                            .cfbar
+                            .modify(|_, w| w.cfbadd().bits(fb2.as_ptr() as u32));
                         // displayed_fb = fb2;
                         work_fb = fb1;
                     } else {
-                        ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
-                        ltd_dev.layer2.cr.modify(|_, w| w.len().disabled());
+                        ltd_dev
+                            .layer1
+                            .cfbar
+                            .modify(|_, w| w.cfbadd().bits(fb1.as_ptr() as u32));
                         // displayed_fb = fb1;
                         work_fb = fb2;
                     }
                     display_refreshed = false;
+                    ltd_dev.srcr.modify(|_, w| w.vbr().set_bit());
                 }
 
                 // handle touch event
@@ -418,7 +429,6 @@ impl slint::platform::Platform for StmBackend {
                     // Calibration
                     let x = ((3500_f64 - _x as f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
                     let y = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
-                    // info!("TS absolute: {} - {} - {}", x, y, z);
 
                     let position = slint::PhysicalPosition::new(x as i32, y as i32)
                         .to_logical(window.scale_factor());
@@ -444,7 +454,7 @@ impl slint::platform::Platform for StmBackend {
                     }
                 }
             }
-            inner.delay.delay_ms(20_u16);
+            inner.delay.delay_us(20_000_u16);
         }
     }
 
