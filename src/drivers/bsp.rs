@@ -311,10 +311,15 @@ impl Default for StmBackend {
             .SPI5
             .spi((lcd_clk, lcd_miso, lcd_mosi), lcd_mode, 2.MHz(), &clocks);
 
-        let (fb1, _fb2) = unsafe { (&mut FB1, &mut FB2) };
+        let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
 
         let mut ltdc_dev = Ltdc { spi_dev: lcd_spi };
-        let _ = Ltdc::new(&mut ltdc_dev, fb1.as_ptr() as *const u16, &mut delay);
+        let _ = Ltdc::new(
+            &mut ltdc_dev,
+            fb1.as_ptr() as *const u16,
+            fb2.as_ptr() as *const u16,
+            &mut delay,
+        );
 
         // Init Touch Screen
         let i2c3_scl = gpio_a.pa8.into_alternate_open_drain::<4>();
@@ -362,8 +367,9 @@ impl slint::platform::Platform for StmBackend {
         // Safety: The Refcell at the beginning of `run_event_loop` prevents re-entrancy and thus multiple mutable references to FB1/FB2.
         let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
 
-        let displayed_fb: &mut [TargetPixel] = fb1;
-        let _work_fb: &mut [TargetPixel] = fb2;
+        // let mut displayed_fb: &mut [TargetPixel] = fb1;
+        let mut work_fb: &mut [TargetPixel] = fb2;
+        let mut display_refreshed = false;
 
         let mut last_touch = None;
 
@@ -380,11 +386,28 @@ impl slint::platform::Platform for StmBackend {
 
             if let Some(window) = self.window.borrow().clone() {
                 window.draw_if_needed(|renderer| {
-                    renderer.render(displayed_fb, DISPLAY_WIDTH);
+                    renderer.render(work_fb, DISPLAY_WIDTH);
+                    display_refreshed = true;
                 });
+                inner.delay.delay_ms(10_u16);
+                // Swap Layers
+                if display_refreshed {
+                    let ltd_dev = unsafe { &*stm32f4xx_hal::pac::LTDC::ptr() };
+                    if ltd_dev.layer1.cr.read().len().bit_is_set() {
+                        ltd_dev.layer1.cr.modify(|_, w| w.len().disabled());
+                        ltd_dev.layer2.cr.modify(|_, w| w.len().enabled());
+                        // displayed_fb = fb2;
+                        work_fb = fb1;
+                    } else {
+                        ltd_dev.layer1.cr.modify(|_, w| w.len().enabled());
+                        ltd_dev.layer2.cr.modify(|_, w| w.len().disabled());
+                        // displayed_fb = fb1;
+                        work_fb = fb2;
+                    }
+                    display_refreshed = false;
+                }
 
                 // handle touch event
-
                 let ts_data_xyz = inner.ts_dev.get_xyz();
                 let _x = (ts_data_xyz >> 20) & 0x00000FFF;
                 let _y = (ts_data_xyz >> 8) & 0x00000FFF;
@@ -392,9 +415,10 @@ impl slint::platform::Platform for StmBackend {
 
                 let button = slint::platform::PointerEventButton::Left;
                 let event = if z > 0 {
+                    // Calibration
                     let x = ((3500_f64 - _x as f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
                     let y = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
-                    info!("TS absolute: {} - {} - {}", x, y, z);
+                    // info!("TS absolute: {} - {} - {}", x, y, z);
 
                     let position = slint::PhysicalPosition::new(x as i32, y as i32)
                         .to_logical(window.scale_factor());
