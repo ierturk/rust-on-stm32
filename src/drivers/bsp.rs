@@ -1,10 +1,9 @@
 extern crate alloc;
 
 use alloc::rc::Rc;
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use defmt::info;
 use embedded_alloc::Heap;
-use hal::timer::DelayMs;
 
 // use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -13,20 +12,24 @@ use hal::i2c::Mode;
 use hal::pac::Peripherals as device;
 use stm32f4xx_hal as hal;
 
-// use super::display::LtdcDisplay;
 use super::fmc::Sdram;
 use super::ltdc::Ltdc;
 use super::touchscreen::TouchScreen;
 
 use slint::platform::software_renderer;
 
-use hal::gpio::GpioExt;
-use hal::gpio::Speed;
-
 use stm32f4xx_hal::{
+    gpio::{GpioExt, Speed},
+    pac::{interrupt, TIM2},
     prelude::*,
     spi::{Mode as SpiMode, Phase, Polarity},
+    timer::{CounterUs, Event},
 };
+
+use cortex_m::interrupt::Mutex;
+
+static G_TIM: Mutex<RefCell<Option<CounterUs<TIM2>>>> = Mutex::new(RefCell::new(None));
+static G_COUNTMS: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
 
 const HEAP_SIZE: usize = 200 * 1024;
 #[link_section = ".embedded_alloc_heap"]
@@ -122,7 +125,15 @@ impl Default for StmBackend {
             // .require_pll48clk()
             .freeze();
 
-        cp.DWT.enable_cycle_counter();
+        let mut timer = dp.TIM2.counter_us(&clocks);
+        timer.start(1.millis()).unwrap();
+        timer.listen(Event::Update);
+        unsafe {
+            cortex_m::peripheral::NVIC::unmask(interrupt::TIM2);
+        }
+        cortex_m::interrupt::free(|cs| {
+            G_TIM.borrow(cs).replace(Some(timer));
+        });
 
         let mut delay = dp.TIM6.delay_us(&clocks);
 
@@ -459,11 +470,27 @@ impl slint::platform::Platform for StmBackend {
     }
 
     fn duration_since_start(&self) -> core::time::Duration {
-        core::time::Duration::from_millis(cortex_m::peripheral::DWT::cycle_count() as u64 / 168_000)
+        let mut tmp: u64 = 0;
+        cortex_m::interrupt::free(|cs| tmp = G_COUNTMS.borrow(cs).get());
+        core::time::Duration::from_millis(tmp)
     }
 
     fn debug_log(&self, arguments: core::fmt::Arguments) {
         use alloc::string::ToString;
-        defmt::println!("{=str}", arguments.to_string());
+        info!("{=str}", arguments.to_string());
     }
+}
+
+// Timer Interrupt
+#[interrupt]
+fn TIM2() {
+    cortex_m::interrupt::free(|cs| {
+        G_COUNTMS.borrow(cs).set(G_COUNTMS.borrow(cs).get() + 1);
+
+        let mut timer = G_TIM.borrow(cs).borrow_mut();
+        timer
+            .as_mut()
+            .unwrap()
+            .clear_flags(stm32f4xx_hal::timer::Flag::Update);
+    });
 }

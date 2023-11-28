@@ -12,10 +12,8 @@ fn main() {
     println!("cargo:rustc-link-search={}", out.display());
     println!("cargo:rerun-if-changed=memory.x");
 
-    slint_build::compile_with_config(
-        "ui/appwindow.slint",
-        slint_build::CompilerConfiguration::new()
-            .embed_resources(slint_build::EmbedResourcesKind::EmbedForSoftwareRenderer),
-    )
-    .unwrap();
+    let config = slint_build::CompilerConfiguration::new()
+        .embed_resources(slint_build::EmbedResourcesKind::EmbedForSoftwareRenderer);
+    slint_build::compile_with_config("ui/carousel_demo.slint", config).unwrap();
+    slint_build::print_rustc_flags().unwrap();
 }
