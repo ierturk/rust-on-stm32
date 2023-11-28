@@ -28,7 +28,7 @@ const STMPE811_REG_TSC_FRACT_XYZ: u8 = 0x56;
 const STMPE811_REG_TSC_I_DRIVE: u8 = 0x58;
 const STMPE811_REG_TSC_CTRL: u8 = 0x40;
 const STMPE811_REG_INT_STA: u8 = 0x0B;
-// const STMPE811_REG_TSC_DATA_NON_INC: u8 = 0xD7;
+const STMPE811_REG_TSC_DATA_NON_INC: u8 = 0xD7;
 
 pub struct TouchScreen {
     pub i2c_dev: I2c<I2C3>,
@@ -155,36 +155,29 @@ impl TouchScreen {
         /* Wait for 2 ms delay */
         delay.delay_us(2_000_u32);
 
-        /*
-        loop {
-            let mut rx_xyz = [0_u8; 4];
-            self.i2c_dev
-                .write(STMPE811_ADDR, &[STMPE811_REG_TSC_DATA_NON_INC])
-                .unwrap();
-            self.i2c_dev.read(STMPE811_ADDR, &mut rx_xyz).unwrap();
-
-            self.i2c_dev
-                .write(0x41, &[STMPE811_REG_FIFO_STA, 1])
-                .unwrap();
-            self.i2c_dev
-                .write(0x41, &[STMPE811_REG_FIFO_STA, 0])
-                .unwrap();
-
-            let data_xyz: u64 = ((rx_xyz[0] as u64) << 24)
-                | ((rx_xyz[1] as u64) << 16)
-                | ((rx_xyz[2] as u64) << 8)
-                | ((rx_xyz[3] as u64) << 0);
-
-            let x = (data_xyz >> 20) & 0x00000FFF;
-            let y = (data_xyz >> 8) & 0x00000FFF;
-            let z = data_xyz & 0xff;
-
-            info!("TS XYZ: {} - {} - {}", x, y, z);
-            delay.delay_us(1_000_000_u32);
-        }
-         */
-
         return true;
+    }
+
+    pub fn get_xyz(&mut self) -> u64 {
+        let mut rx_xyz = [0_u8; 4];
+        self.i2c_dev
+            .write(STMPE811_ADDR, &[STMPE811_REG_TSC_DATA_NON_INC])
+            .unwrap();
+        self.i2c_dev.read(STMPE811_ADDR, &mut rx_xyz).unwrap();
+
+        self.i2c_dev
+            .write(0x41, &[STMPE811_REG_FIFO_STA, 1])
+            .unwrap();
+        self.i2c_dev
+            .write(0x41, &[STMPE811_REG_FIFO_STA, 0])
+            .unwrap();
+
+        let data_xyz: u64 = ((rx_xyz[0] as u64) << 24)
+            | ((rx_xyz[1] as u64) << 16)
+            | ((rx_xyz[2] as u64) << 8)
+            | ((rx_xyz[3] as u64) << 0);
+
+        data_xyz
     }
 }
 

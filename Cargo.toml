@@ -12,7 +12,6 @@ default-target = "thumbv7em-none-eabihf"
 [dependencies]
 cortex-m = { version = "0.7.4", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.1"
-lilos = { git = "https://github.com/cbiffle/lilos.git", rev = "66512be0e793ef9e03d57d5f49ae397acc2cc5da" }
 
 defmt = "0.3"
 defmt-rtt = "0.4"

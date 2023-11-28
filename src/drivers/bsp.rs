@@ -2,7 +2,9 @@ extern crate alloc;
 
 use alloc::rc::Rc;
 use core::cell::RefCell;
+use defmt::info;
 use embedded_alloc::Heap;
+use hal::timer::DelayMs;
 
 // use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -85,15 +87,12 @@ macro_rules! ltdc_pins_af9 {
 }
 
 struct StmBackendInner {
-    scb: cortex_m::peripheral::SCB,
-    delay: stm32f4xx_hal::timer::delay::SysDelay,
-    // layer: stm32f4xx_hal::ltdc::LtdcLayer1,
-    // ts_i2c: stm32f4xx_hal::i2c::I2c<stm32f4xx_hal::i2c::I2c3>,
+    pub delay: stm32f4xx_hal::timer::DelayUs<stm32f4xx_hal::pac::TIM6>,
+    pub ts_dev: TouchScreen,
 }
 
 pub struct StmBackend {
     window: RefCell<Option<Rc<slint::platform::software_renderer::MinimalSoftwareWindow>>>,
-    // timer: hal::timer::Timer<stm32f4xx_hal::pac::TIM2>,
     inner: RefCell<StmBackendInner>,
 }
 
@@ -123,12 +122,9 @@ impl Default for StmBackend {
             // .require_pll48clk()
             .freeze();
 
-        let mut delay = cp.SYST.delay(&clocks);
-
-        cp.SCB.invalidate_icache();
-        cp.SCB.enable_icache();
-        cp.SCB.enable_dcache(&mut cp.CPUID);
         cp.DWT.enable_cycle_counter();
+
+        let mut delay = dp.TIM6.delay_us(&clocks);
 
         let gpio_a = dp.GPIOA.split();
         let gpio_b = dp.GPIOB.split();
@@ -192,7 +188,26 @@ impl Default for StmBackend {
             gpio_c.pc0
         );
 
-        let _ = Sdram::new(&mut delay);
+        let _sdram_ptr = Sdram::new(&mut delay);
+        /*
+               // SDRAM Test
+               let sdram_size = 8 * 1024 * 1024; // 8MiB
+               let sdram = unsafe {
+                   core::slice::from_raw_parts_mut(_sdram_ptr, sdram_size / core::mem::size_of::<u16>())
+               };
+
+               sdram.fill(0x0000);
+
+               for n in 0..240 {
+                   sdram[n + 20 * 240] = 0x1f;
+                   sdram[n + 300 * 240] = 0x1f;
+               }
+
+               for n in 0..320 {
+                   sdram[n * 240 + 20] = 0x1f;
+                   sdram[n * 240 + 220] = 0x1f;
+               }
+        */
 
         unsafe {
             ALLOCATOR.init(
@@ -316,21 +331,14 @@ impl Default for StmBackend {
         let mut ts_dev = TouchScreen { i2c_dev: i2c3_dev };
         let _ = TouchScreen::new(&mut ts_dev, &mut delay);
 
-        // Init Timer
-        // let timer = stm32f4xx_hal::timer::Timer::new(dp.TIM2, &clocks);
-        // timer.listen(hal::timer::Event::Update);
+        // let _led_green = gpio_g.pg13.into_push_pull_output();
+        // let _led_red = gpio_g.pg14.into_push_pull_output();
 
         // Init RNG
 
         Self {
             window: RefCell::default(),
-            // timer,
-            inner: RefCell::new(StmBackendInner {
-                scb: cp.SCB,
-                delay,
-                // layer,
-                // touch_i2c,
-            }),
+            inner: RefCell::new(StmBackendInner { delay, ts_dev }),
         }
     }
 }
@@ -347,7 +355,7 @@ impl slint::platform::Platform for StmBackend {
     }
 
     fn run_event_loop(&self) -> Result<(), slint::PlatformError> {
-        let _inner = &mut *self.inner.borrow_mut();
+        let inner = &mut *self.inner.borrow_mut();
 
         // Init TouchScreen
 
@@ -357,7 +365,7 @@ impl slint::platform::Platform for StmBackend {
         let displayed_fb: &mut [TargetPixel] = fb1;
         let _work_fb: &mut [TargetPixel] = fb2;
 
-        // let mut last_touch = None;
+        let mut last_touch = None;
 
         self.window
             .borrow()
@@ -376,16 +384,48 @@ impl slint::platform::Platform for StmBackend {
                 });
 
                 // handle touch event
-            }
 
-            // FIXME: cortex_m::asm::wfe();
+                let ts_data_xyz = inner.ts_dev.get_xyz();
+                let _x = (ts_data_xyz >> 20) & 0x00000FFF;
+                let _y = (ts_data_xyz >> 8) & 0x00000FFF;
+                let z = ts_data_xyz & 0xff;
+
+                let button = slint::platform::PointerEventButton::Left;
+                let event = if z > 0 {
+                    let x = ((3500_f64 - _x as f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
+                    let y = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
+                    info!("TS absolute: {} - {} - {}", x, y, z);
+
+                    let position = slint::PhysicalPosition::new(x as i32, y as i32)
+                        .to_logical(window.scale_factor());
+                    Some(match last_touch.replace(position) {
+                        Some(_) => slint::platform::WindowEvent::PointerMoved { position },
+                        None => slint::platform::WindowEvent::PointerPressed { position, button },
+                    })
+                } else {
+                    last_touch.take().map(|position| {
+                        slint::platform::WindowEvent::PointerReleased { position, button }
+                    })
+                };
+
+                if let Some(event) = event {
+                    let is_pointer_release_event =
+                        matches!(event, slint::platform::WindowEvent::PointerReleased { .. });
+
+                    window.dispatch_event(event);
+
+                    // removes hover state on widgets
+                    if is_pointer_release_event {
+                        window.dispatch_event(slint::platform::WindowEvent::PointerExited);
+                    }
+                }
+            }
+            inner.delay.delay_ms(20_u16);
         }
     }
 
     fn duration_since_start(&self) -> core::time::Duration {
-        // FIXME! the timer can overflow
-        // let val = self.timer.counter() / 10;
-        core::time::Duration::from_millis(100)
+        core::time::Duration::from_millis(cortex_m::peripheral::DWT::cycle_count() as u64 / 168_000)
     }
 
     fn debug_log(&self, arguments: core::fmt::Arguments) {
