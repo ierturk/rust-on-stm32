@@ -12,6 +12,7 @@ use hal::i2c::Mode;
 use hal::pac::Peripherals as device;
 use stm32f4xx_hal as hal;
 
+use super::display::LtdcDisplay;
 use super::fmc::Sdram;
 use super::ltdc::Ltdc;
 use super::touchscreen::TouchScreen;
@@ -28,6 +29,8 @@ use stm32f4xx_hal::{
 
 use cortex_m::interrupt::Mutex;
 
+use embedded_graphics_core::{pixelcolor::raw::RawU16, prelude::*, primitives::Rectangle};
+
 static G_TIM: Mutex<RefCell<Option<CounterUs<TIM2>>>> = Mutex::new(RefCell::new(None));
 static G_COUNTMS: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
 
@@ -38,8 +41,8 @@ static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 #[global_allocator]
 static ALLOCATOR: Heap = Heap::empty();
 
-const DISPLAY_WIDTH: usize = 240;
-const DISPLAY_HEIGHT: usize = 320;
+const DISPLAY_WIDTH: usize = 320;
+const DISPLAY_HEIGHT: usize = 240;
 
 pub type TargetPixel = software_renderer::Rgb565Pixel;
 
@@ -49,6 +52,11 @@ static mut FB1: [TargetPixel; DISPLAY_WIDTH * DISPLAY_HEIGHT] =
 #[link_section = ".frame_buffer"]
 static mut FB2: [TargetPixel; DISPLAY_WIDTH * DISPLAY_HEIGHT] =
     [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_HEIGHT];
+
+#[link_section = ".frame_buffer"]
+static mut LB1: [TargetPixel; DISPLAY_WIDTH] = [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH];
+#[link_section = ".frame_buffer"]
+static mut LB2: [TargetPixel; DISPLAY_WIDTH] = [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH];
 
 macro_rules! fmc_pins {
     ($($pin:expr),*) => {
@@ -90,8 +98,9 @@ macro_rules! ltdc_pins_af9 {
 }
 
 struct StmBackendInner {
-    pub delay: stm32f4xx_hal::timer::DelayUs<stm32f4xx_hal::pac::TIM6>,
+    pub display_dev: LtdcDisplay,
     pub ts_dev: TouchScreen,
+    pub delay: stm32f4xx_hal::timer::DelayUs<stm32f4xx_hal::pac::TIM6>,
 }
 
 pub struct StmBackend {
@@ -336,6 +345,18 @@ impl Default for StmBackend {
             &mut delay,
         );
 
+        // Display
+        let (lb1, lb2) = unsafe { (&mut LB1, &mut LB2) };
+
+        let mut display_dev = LtdcDisplay {
+            fb1_ptr: fb1.as_ptr() as *const u16,
+            fb2_ptr: fb2.as_ptr() as *const u16,
+            lb1_ptr: lb1.as_ptr() as *const u16,
+            lb2_ptr: lb1.as_ptr() as *const u16,
+            width: 320,
+            height: 240,
+        };
+
         // Init Touch Screen
         let i2c3_scl = gpio_a.pa8.into_alternate_open_drain::<4>();
         let i2c3_sda = gpio_c.pc9.into_alternate_open_drain::<4>();
@@ -358,7 +379,11 @@ impl Default for StmBackend {
 
         Self {
             window: RefCell::default(),
-            inner: RefCell::new(StmBackendInner { delay, ts_dev }),
+            inner: RefCell::new(StmBackendInner {
+                display_dev,
+                ts_dev,
+                delay,
+            }),
         }
     }
 }
@@ -368,7 +393,7 @@ impl slint::platform::Platform for StmBackend {
         &self,
     ) -> Result<Rc<dyn slint::platform::WindowAdapter>, slint::PlatformError> {
         let window = slint::platform::software_renderer::MinimalSoftwareWindow::new(
-            slint::platform::software_renderer::RepaintBufferType::SwappedBuffers,
+            slint::platform::software_renderer::RepaintBufferType::ReusedBuffer,
         );
         self.window.replace(Some(window.clone()));
         Ok(window)
@@ -404,30 +429,39 @@ impl slint::platform::Platform for StmBackend {
 
             if let Some(window) = self.window.borrow().clone() {
                 window.draw_if_needed(|renderer| {
-                    while ltd_dev.srcr.read().vbr().bit_is_set() {}
-                    renderer.render(work_fb, DISPLAY_WIDTH);
-                    display_refreshed = true;
+                    renderer.render_by_line(DisplayWrapper {
+                        display: &mut inner.display_dev,
+                        line_buffer: unsafe { &mut LB1 },
+                    });
                 });
-                // Swap FrameBuffer
-                if display_refreshed {
-                    if work_fb.as_ptr() == fb2.as_ptr() {
-                        ltd_dev
-                            .layer1
-                            .cfbar
-                            .modify(|_, w| w.cfbadd().bits(fb2.as_ptr() as u32));
-                        // displayed_fb = fb2;
-                        work_fb = fb1;
-                    } else {
-                        ltd_dev
-                            .layer1
-                            .cfbar
-                            .modify(|_, w| w.cfbadd().bits(fb1.as_ptr() as u32));
-                        // displayed_fb = fb1;
-                        work_fb = fb2;
-                    }
-                    display_refreshed = false;
-                    ltd_dev.srcr.modify(|_, w| w.vbr().set_bit());
-                }
+
+                /*
+                               window.draw_if_needed(|renderer| {
+                                   while ltd_dev.srcr.read().vbr().bit_is_set() {}
+                                   renderer.render(work_fb, DISPLAY_WIDTH);
+                                   display_refreshed = true;
+                               });
+                               // Swap FrameBuffer
+                               if display_refreshed {
+                                   if work_fb.as_ptr() == fb2.as_ptr() {
+                                       ltd_dev
+                                           .layer1
+                                           .cfbar
+                                           .modify(|_, w| w.cfbadd().bits(fb2.as_ptr() as u32));
+                                       // displayed_fb = fb2;
+                                       work_fb = fb1;
+                                   } else {
+                                       ltd_dev
+                                           .layer1
+                                           .cfbar
+                                           .modify(|_, w| w.cfbadd().bits(fb1.as_ptr() as u32));
+                                       // displayed_fb = fb1;
+                                       work_fb = fb2;
+                                   }
+                                   display_refreshed = false;
+                                   ltd_dev.srcr.modify(|_, w| w.vbr().set_bit());
+                               }
+                */
 
                 // handle touch event
                 let ts_data_xyz = inner.ts_dev.get_xyz();
@@ -438,8 +472,8 @@ impl slint::platform::Platform for StmBackend {
                 let button = slint::platform::PointerEventButton::Left;
                 let event = if z > 0 {
                     // Calibration
-                    let x = ((3500_f64 - _x as f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
-                    let y = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
+                    let x = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
+                    let y = ((_x as f64 - 500_f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
 
                     let position = slint::PhysicalPosition::new(x as i32, y as i32)
                         .to_logical(window.scale_factor());
@@ -478,6 +512,39 @@ impl slint::platform::Platform for StmBackend {
     fn debug_log(&self, arguments: core::fmt::Arguments) {
         use alloc::string::ToString;
         info!("{=str}", arguments.to_string());
+    }
+}
+
+struct DisplayWrapper<'a, T> {
+    display: &'a mut T,
+    line_buffer: &'a mut [slint::platform::software_renderer::Rgb565Pixel],
+}
+impl<T: DrawTarget<Color = embedded_graphics_core::pixelcolor::Rgb565>>
+    slint::platform::software_renderer::LineBufferProvider for DisplayWrapper<'_, T>
+{
+    type TargetPixel = slint::platform::software_renderer::Rgb565Pixel;
+    fn process_line(
+        &mut self,
+        line: usize,
+        range: core::ops::Range<usize>,
+        render_fn: impl FnOnce(&mut [Self::TargetPixel]),
+    ) {
+        // Render into the line
+        render_fn(&mut self.line_buffer[range.clone()]);
+
+        // Send the line to the screen using DrawTarget::fill_contiguous
+        self.display
+            .fill_contiguous(
+                &Rectangle::new(
+                    Point::new(range.start as _, line as _),
+                    Size::new(range.len() as _, 1),
+                ),
+                self.line_buffer[range.clone()]
+                    .iter()
+                    .map(|p| RawU16::new(p.0).into()),
+            )
+            .map_err(drop)
+            .unwrap();
     }
 }
 

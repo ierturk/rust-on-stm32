@@ -93,7 +93,7 @@ pub struct Ltdc {
     pub spi_dev: Spi5,
 }
 impl Ltdc {
-    pub fn new<D>(&mut self, fb_ptr_l1: *const u16, fb_ptr_l2: *const u16, delay: &mut D) -> bool
+    pub fn new<D>(&mut self, fb1_ptr: *const u16, fb2_ptr: *const u16, delay: &mut D) -> bool
     where
         D: DelayUs<u32>,
     {
@@ -333,7 +333,7 @@ impl Ltdc {
         ltd_dev
             .layer1
             .cfbar
-            .modify(|_, w| w.cfbadd().bits(fb_ptr_l1 as u32));
+            .modify(|_, w| w.cfbadd().bits(fb1_ptr as u32));
 
         // Configure the color frame buffer pitch in byte
         ltd_dev

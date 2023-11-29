@@ -1,7 +1,10 @@
 use embedded_graphics_core::{pixelcolor::Rgb565, prelude::*, primitives::Rectangle};
 
 pub struct LtdcDisplay {
-    pub fb_ptr: *const u16,
+    pub fb1_ptr: *const u16,
+    pub fb2_ptr: *const u16,
+    pub lb1_ptr: *const u16,
+    pub lb2_ptr: *const u16,
     pub width: usize,
     pub height: usize,
 }
@@ -21,7 +24,7 @@ impl DrawTarget for LtdcDisplay {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         let fb = unsafe {
-            core::slice::from_raw_parts_mut(self.fb_ptr as *mut u16, self.width * self.height + 3)
+            core::slice::from_raw_parts_mut(self.fb1_ptr as *mut u16, self.width * self.height + 3)
         };
 
         for Pixel(point, color) in pixels {
