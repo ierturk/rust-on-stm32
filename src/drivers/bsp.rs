@@ -44,11 +44,11 @@ const DISPLAY_HEIGHT: usize = 240;
 pub type TargetPixel = software_renderer::Rgb565Pixel;
 
 #[link_section = ".frame_buffer"]
-static mut FB1: [TargetPixel; DISPLAY_WIDTH * DISPLAY_HEIGHT] =
-    [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_HEIGHT];
+static mut FB1: [TargetPixel; DISPLAY_WIDTH * DISPLAY_WIDTH] =
+    [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_WIDTH];
 #[link_section = ".frame_buffer"]
-static mut FB2: [TargetPixel; DISPLAY_WIDTH * DISPLAY_HEIGHT] =
-    [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_HEIGHT];
+static mut FB2: [TargetPixel; DISPLAY_WIDTH * DISPLAY_WIDTH] =
+    [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_WIDTH];
 
 macro_rules! fmc_pins {
     ($($pin:expr),*) => {
@@ -382,7 +382,7 @@ impl slint::platform::Platform for StmBackend {
         // Safety: The Refcell at the beginning of `run_event_loop` prevents re-entrancy and thus multiple mutable references to FB1/FB2.
         let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
 
-        let work_fb: &mut [TargetPixel] = fb2;
+        let mut work_fb: &mut [TargetPixel] = fb2;
 
         let mut display_refreshed = false;
 
@@ -405,19 +405,27 @@ impl slint::platform::Platform for StmBackend {
             if let Some(window) = self.window.borrow().clone() {
                 window.draw_if_needed(|renderer| {
                     while ltd_dev.srcr.read().vbr().bit_is_set() {}
-                    renderer.render(work_fb, DISPLAY_WIDTH);
+                    renderer.set_window_rotation(software_renderer::WindowRotation::Rotate270);
+                    renderer.render(work_fb, DISPLAY_HEIGHT);
+                    renderer.set_window_rotation(software_renderer::WindowRotation::NoRotation);
                     display_refreshed = true;
                 });
 
-                // Update FrameBuffer
+                // Swap FrameBuffer
                 if display_refreshed {
-                    for m in 0..DISPLAY_HEIGHT {
-                        for n in 0..DISPLAY_WIDTH {
-                            fb1[DISPLAY_HEIGHT * n + (DISPLAY_HEIGHT - m - 1)] =
-                                work_fb[DISPLAY_WIDTH * m + n];
-                        }
+                    if work_fb.as_ptr() == fb2.as_ptr() {
+                        ltd_dev
+                            .layer1
+                            .cfbar
+                            .modify(|_, w| w.cfbadd().bits(fb2.as_ptr() as u32));
+                        work_fb = fb1;
+                    } else {
+                        ltd_dev
+                            .layer1
+                            .cfbar
+                            .modify(|_, w| w.cfbadd().bits(fb1.as_ptr() as u32));
+                        work_fb = fb2;
                     }
-
                     display_refreshed = false;
                     ltd_dev.srcr.modify(|_, w| w.vbr().set_bit());
                 }
@@ -458,7 +466,7 @@ impl slint::platform::Platform for StmBackend {
                     }
                 }
             }
-            inner.delay.delay_us(20_000_u16);
+            inner.delay.delay_us(5_000_u16);
         }
     }
 
