@@ -38,8 +38,8 @@ static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 #[global_allocator]
 static ALLOCATOR: Heap = Heap::empty();
 
-const DISPLAY_WIDTH: usize = 240;
-const DISPLAY_HEIGHT: usize = 320;
+const DISPLAY_WIDTH: usize = 320;
+const DISPLAY_HEIGHT: usize = 240;
 
 pub type TargetPixel = software_renderer::Rgb565Pixel;
 
@@ -382,8 +382,8 @@ impl slint::platform::Platform for StmBackend {
         // Safety: The Refcell at the beginning of `run_event_loop` prevents re-entrancy and thus multiple mutable references to FB1/FB2.
         let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
 
-        // let mut displayed_fb: &mut [TargetPixel] = fb1;
-        let mut work_fb: &mut [TargetPixel] = fb2;
+        let work_fb: &mut [TargetPixel] = fb2;
+
         let mut display_refreshed = false;
 
         let mut last_touch = None;
@@ -408,23 +408,16 @@ impl slint::platform::Platform for StmBackend {
                     renderer.render(work_fb, DISPLAY_WIDTH);
                     display_refreshed = true;
                 });
-                // Swap FrameBuffer
+
+                // Update FrameBuffer
                 if display_refreshed {
-                    if work_fb.as_ptr() == fb2.as_ptr() {
-                        ltd_dev
-                            .layer1
-                            .cfbar
-                            .modify(|_, w| w.cfbadd().bits(fb2.as_ptr() as u32));
-                        // displayed_fb = fb2;
-                        work_fb = fb1;
-                    } else {
-                        ltd_dev
-                            .layer1
-                            .cfbar
-                            .modify(|_, w| w.cfbadd().bits(fb1.as_ptr() as u32));
-                        // displayed_fb = fb1;
-                        work_fb = fb2;
+                    for m in 0..DISPLAY_HEIGHT {
+                        for n in 0..DISPLAY_WIDTH {
+                            fb1[DISPLAY_HEIGHT * n + (DISPLAY_HEIGHT - m - 1)] =
+                                work_fb[DISPLAY_WIDTH * m + n];
+                        }
                     }
+
                     display_refreshed = false;
                     ltd_dev.srcr.modify(|_, w| w.vbr().set_bit());
                 }
@@ -438,8 +431,8 @@ impl slint::platform::Platform for StmBackend {
                 let button = slint::platform::PointerEventButton::Left;
                 let event = if z > 0 {
                     // Calibration
-                    let x = ((3500_f64 - _x as f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
-                    let y = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
+                    let x = ((_y as f64 - 640_f64) * 280_f64 / 3100_f64 + 20_f64) as i32;
+                    let y = ((_x as f64 - 500_f64) * 200_f64 / 3000_f64 + 20_f64) as i32;
 
                     let position = slint::PhysicalPosition::new(x as i32, y as i32)
                         .to_logical(window.scale_factor());
