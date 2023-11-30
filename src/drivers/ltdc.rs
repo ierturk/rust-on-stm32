@@ -93,7 +93,7 @@ pub struct Ltdc {
     pub spi_dev: Spi5,
 }
 impl Ltdc {
-    pub fn new<D>(&mut self, fb_ptr_l1: *const u16, fb_ptr_l2: *const u16, delay: &mut D) -> bool
+    pub fn new<D>(&mut self, fb_ptr_l1: *const u16, _fb_ptr_l2: *const u16, delay: &mut D) -> bool
     where
         D: DelayUs<u32>,
     {
@@ -104,9 +104,9 @@ impl Ltdc {
 
         // Clock config
         // PLLSAI_VCO Input = HSE_VALUE/PLL_M = 2 Mhz
-        // PLLSAI_VCO Output = PLLSAI_VCO Input * PLLSAIN = 192 Mhz
-        // PLLLCDCLK = PLLSAI_VCO Output/PLLSAIR = 192/4 = 48 Mhz */
-        // LTDC clock frequency = PLLLCDCLK / LTDC_PLLSAI_DIVR_8 = 48/8 = 6Mhz
+        // PLLSAI_VCO Output = PLLSAI_VCO Input * PLLSAIN = 190 Mhz
+        // PLLLCDCLK = PLLSAI_VCO Output/PLLSAIR = 190/5 = 38 Mhz */
+        // LTDC clock frequency = PLLLCDCLK / LTDC_PLLSAI_DIVR_4 = 38/4 = 9.5Mhz
         rcc.cr.modify(|_, w| w.pllsaion().clear_bit());
         while rcc.cr.read().pllsairdy().bit_is_set() {}
         // rcc.cr.modify(|_, w| w.pllsaion().clear_bit());

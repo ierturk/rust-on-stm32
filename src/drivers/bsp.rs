@@ -40,15 +40,16 @@ static ALLOCATOR: Heap = Heap::empty();
 
 const DISPLAY_WIDTH: usize = 320;
 const DISPLAY_HEIGHT: usize = 240;
+const FRAME_BUFFER_SIZE: usize = DISPLAY_WIDTH * DISPLAY_HEIGHT;
 
 pub type TargetPixel = software_renderer::Rgb565Pixel;
 
 #[link_section = ".frame_buffer"]
-static mut FB1: [TargetPixel; DISPLAY_WIDTH * DISPLAY_WIDTH] =
-    [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_WIDTH];
+static mut FB1: [TargetPixel; FRAME_BUFFER_SIZE] =
+    [software_renderer::Rgb565Pixel(0); FRAME_BUFFER_SIZE];
 #[link_section = ".frame_buffer"]
-static mut FB2: [TargetPixel; DISPLAY_WIDTH * DISPLAY_WIDTH] =
-    [software_renderer::Rgb565Pixel(0); DISPLAY_WIDTH * DISPLAY_WIDTH];
+static mut FB2: [TargetPixel; FRAME_BUFFER_SIZE] =
+    [software_renderer::Rgb565Pixel(0); FRAME_BUFFER_SIZE];
 
 macro_rules! fmc_pins {
     ($($pin:expr),*) => {
@@ -101,7 +102,7 @@ pub struct StmBackend {
 
 impl Default for StmBackend {
     fn default() -> Self {
-        let mut cp = cortex_m::Peripherals::take().unwrap();
+        let _cp = cortex_m::Peripherals::take().unwrap();
         let dp = device::take().unwrap();
 
         // Debug probe fix for RTT
