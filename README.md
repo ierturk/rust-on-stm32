@@ -1,4 +1,4 @@
-# A Rust Board Support Package (BSP) and Example Application Slint-UI for STM32F429-Discovery Kit 
+# A Rust Board Support Package (BSP) and Example Application Slint UI for STM32F429-Discovery Kit 
 [Associated post](https://erturk.me/projects/a-rust-bsp-package-for-stm32f4-discovery-kit/)
 
 ![Made with Slint](docs/images/made-with-slint.png)   
@@ -35,7 +35,7 @@ Or
 - It can be run through VSCode menus 
 ___
 ### Conclusion
-This is the Slint-UI Carousel Demo runs on the F4 MCU   
+This is the Slint Carousel Demo running on the F4 MCU   
 
 ![Slint UI Carousel Demo](docs/images/rust-slint-ui-carousel-demo.jpeg)
 
