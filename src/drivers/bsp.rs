@@ -3,7 +3,9 @@ extern crate alloc;
 use alloc::{boxed::Box, rc::Rc};
 use core::cell::{Cell, RefCell};
 use defmt::info;
+
 use embedded_alloc::Heap;
+
 use i_slint_core::software_renderer::MinimalSoftwareWindow;
 
 // use defmt::*;
@@ -585,6 +587,11 @@ pub async fn ui_task() {
             }
         }
 
-        lilos::time::sleep_for(lilos::time::Millis(20)).await;
+        if let Some(timeout) = slint::platform::duration_until_next_timer_update() {
+            lilos::time::sleep_for(lilos::time::Millis(timeout.as_millis() as u64)).await;
+            info!("a valid timeout value: {}", timeout);
+        } else {
+            lilos::time::sleep_for(lilos::time::Millis(20)).await;
+        }
     }
 }
