@@ -1,4 +1,4 @@
-# A Rust Board Support Package (BSP) and Example Application Slint-UI for STM32F429-Discovery Kit 
+# A Rust Board Support Package (BSP) and Example Slint Application for STM32F429-Discovery Kit 
 [Associated post](https://erturk.me/projects/a-rust-bsp-package-for-stm32f4-discovery-kit/)
 
 ![Made with Slint](docs/images/made-with-slint.png)   
@@ -17,8 +17,8 @@ ___
 - [STM32F429ZI Discovery Board](https://www.st.com/en/evaluation-tools/32f429idiscovery.html)
 - [WSL - Windows Subsystem for Linux](https://apps.microsoft.com/detail/windows-subsystem-for-linux/9P9TQF7MRM4R?hl=en-gb&gl=US)
 [Ubuntu 22.04.2 LTS](https://apps.microsoft.com/detail/9PN20MSR04DW?hl=en-gb&gl=US)
-- [Slint UI](https://slint.dev/)
-- [Slint UI Plugin for VSCode](https://marketplace.visualstudio.com/items?itemName=Slint.slint)
+- [Slint](https://slint.dev/)
+- [Slint Plugin for VSCode](https://marketplace.visualstudio.com/items?itemName=Slint.slint)
 - [lilos Async RTOS](https://github.com/cbiffle/lilos)
 ___
 ### Setup
@@ -35,7 +35,7 @@ Or
 - It can be run through VSCode menus 
 ___
 ### Conclusion
-This is the Slint-UI Carousel Demo runs on the F4 MCU   
+This is the Slint Carousel Demo running on the F4 MCU   
 
 ![Slint UI Carousel Demo](docs/images/rust-slint-ui-carousel-demo.jpeg)
 
