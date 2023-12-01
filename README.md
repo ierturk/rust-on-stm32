@@ -1,4 +1,4 @@
-# A Rust Board Support Package (BSP) and Example Application Slint UI for STM32F429-Discovery Kit 
+# A Rust Board Support Package (BSP) and Example Slint Application for STM32F429-Discovery Kit 
 [Associated post](https://erturk.me/projects/a-rust-bsp-package-for-stm32f4-discovery-kit/)
 
 ![Made with Slint](docs/images/made-with-slint.png)   
