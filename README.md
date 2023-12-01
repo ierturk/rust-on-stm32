@@ -19,6 +19,7 @@ ___
 [Ubuntu 22.04.2 LTS](https://apps.microsoft.com/detail/9PN20MSR04DW?hl=en-gb&gl=US)
 - [Slint UI](https://slint.dev/)
 - [Slint UI Plugin for VSCode](https://marketplace.visualstudio.com/items?itemName=Slint.slint)
+- [lilos Async RTOS](https://github.com/cbiffle/lilos)
 ___
 ### Setup
 For setup the whole development system on WSL and VSCode please refer to [this post](https://erturk.me/projects/working-with-rust-embedded-on-wsl/)

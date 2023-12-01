@@ -35,7 +35,7 @@ pub struct TouchScreen {
 }
 
 impl TouchScreen {
-    pub fn new<D>(&mut self, delay: &mut D) -> bool
+    pub fn init<D>(&mut self, delay: &mut D) -> bool
     where
         D: DelayUs<u32>,
     {
