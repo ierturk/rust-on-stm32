@@ -15,7 +15,7 @@ const SYSCLK: u32 = 168_000_000;
 fn main() -> ! {
     let mut cp = cortex_m::Peripherals::take().unwrap();
 
-    // let _ = drivers::bsp::bsp_init();
+    let stm_backend_inner = drivers::bsp::StmBackendInner::default();
 
     let led_task = core::pin::pin!(async {
         let mut gate = lilos::time::PeriodicGate::from(PERIOD);
@@ -32,12 +32,17 @@ fn main() -> ! {
     });
 
     let gui_task = core::pin::pin!(async {
-        drivers::bsp::ui_task().await;
+        drivers::bsp::slint_async_run_event_loop(stm_backend_inner).await;
         loop {}
     });
 
     lilos::time::initialize_sys_tick(&mut cp.SYST, SYSCLK);
-    lilos::exec::run_tasks(&mut [led_task, gui_task], lilos::exec::ALL_TASKS);
 
-    //defmt::panic!("The MCU demo should not quit")
+    unsafe {
+        lilos::exec::run_tasks_with_preemption(
+            &mut [led_task, gui_task],
+            lilos::exec::ALL_TASKS,
+            lilos::exec::Interrupts::Filtered(7),
+        );
+    }
 }

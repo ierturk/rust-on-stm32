@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc};
-use core::cell::{Cell, RefCell};
+use core::cell::RefCell;
 use defmt::info;
 
 use embedded_alloc::Heap;
@@ -23,18 +23,11 @@ use slint::platform::software_renderer;
 
 use stm32f4xx_hal::{
     gpio::{GpioExt, Speed},
-    pac::{interrupt, TIM2},
     prelude::*,
     spi::{Mode as SpiMode, Phase, Polarity},
-    timer::{CounterUs, Event},
 };
 
-use cortex_m::interrupt::Mutex;
-
 slint::include_modules!();
-
-static G_TIM: Mutex<RefCell<Option<CounterUs<TIM2>>>> = Mutex::new(RefCell::new(None));
-static G_COUNTMS: Mutex<Cell<u64>> = Mutex::new(Cell::new(0));
 
 const HEAP_SIZE: usize = 200 * 1024;
 #[link_section = ".embedded_alloc_heap"]
@@ -95,58 +88,49 @@ macro_rules! ltdc_pins_af9 {
     };
 }
 
-pub struct StmBackend {
-    window: Rc<MinimalSoftwareWindow>,
-    // inner: RefCell<StmBackendInner>,
+pub struct StmBackendInner {
+    pub delay: stm32f4xx_hal::timer::DelayUs<stm32f4xx_hal::pac::TIM6>,
+    pub ts_dev: TouchScreen,
 }
 
-pub fn bsp_init() -> TouchScreen {
-    let dp = device::take().unwrap();
+impl Default for StmBackendInner {
+    fn default() -> Self {
+        let dp = device::take().unwrap();
 
-    // Debug probe fix for RTT
-    dp.RCC.apb2enr.write(|w| w.syscfgen().enabled());
-    dp.DBGMCU.cr.modify(|_, w| {
-        w.dbg_sleep().set_bit();
-        w.dbg_standby().set_bit();
-        w.dbg_stop().set_bit()
-    });
-    dp.RCC.ahb1enr.modify(|_, w| w.dma1en().enabled());
-    dp.RCC.ahb1enr.modify(|_, w| w.gpiogen().enabled());
+        // Debug probe fix for RTT
+        dp.RCC.apb2enr.write(|w| w.syscfgen().enabled());
+        dp.DBGMCU.cr.modify(|_, w| {
+            w.dbg_sleep().set_bit();
+            w.dbg_standby().set_bit();
+            w.dbg_stop().set_bit()
+        });
+        dp.RCC.ahb1enr.modify(|_, w| w.dma1en().enabled());
+        dp.RCC.ahb1enr.modify(|_, w| w.gpiogen().enabled());
 
-    let rcc = dp.RCC.constrain();
-    let clocks = rcc
-        .cfgr
-        .use_hse(8.MHz())
-        .sysclk(168.MHz())
-        .hclk(168.MHz())
-        .pclk1(42.MHz())
-        .pclk2(84.MHz())
-        // .require_pll48clk()
-        .freeze();
+        let rcc = dp.RCC.constrain();
+        let clocks = rcc
+            .cfgr
+            .use_hse(8.MHz())
+            .sysclk(168.MHz())
+            .hclk(168.MHz())
+            .pclk1(42.MHz())
+            .pclk2(84.MHz())
+            // .require_pll48clk()
+            .freeze();
 
-    let mut timer = dp.TIM2.counter_us(&clocks);
-    timer.start(1.millis()).unwrap();
-    timer.listen(Event::Update);
-    unsafe {
-        cortex_m::peripheral::NVIC::unmask(interrupt::TIM2);
-    }
-    cortex_m::interrupt::free(|cs| {
-        G_TIM.borrow(cs).replace(Some(timer));
-    });
+        let mut delay = dp.TIM6.delay_us(&clocks);
 
-    let mut delay = dp.TIM6.delay_us(&clocks);
+        let gpio_a = dp.GPIOA.split();
+        let gpio_b = dp.GPIOB.split();
+        let gpio_c = dp.GPIOC.split();
+        let gpio_d = dp.GPIOD.split();
+        let gpio_e = dp.GPIOE.split();
+        let gpio_f = dp.GPIOF.split();
+        let gpio_g = dp.GPIOG.split();
 
-    let gpio_a = dp.GPIOA.split();
-    let gpio_b = dp.GPIOB.split();
-    let gpio_c = dp.GPIOC.split();
-    let gpio_d = dp.GPIOD.split();
-    let gpio_e = dp.GPIOE.split();
-    let gpio_f = dp.GPIOF.split();
-    let gpio_g = dp.GPIOG.split();
-
-    // Init FMC/SDRAM that start at 0xD000_0000
-    // GPIO Config
-    #[rustfmt::skip]
+        // Init FMC/SDRAM that start at 0xD000_0000
+        // GPIO Config
+        #[rustfmt::skip]
         let _ = fmc_pins!(
             // A0-A11
             gpio_f.pf0,
@@ -198,38 +182,38 @@ pub fn bsp_init() -> TouchScreen {
             gpio_c.pc0
         );
 
-    let _sdram_ptr = Sdram::new(&mut delay);
-    /*
-           // SDRAM Test
-           let sdram_size = 8 * 1024 * 1024; // 8MiB
-           let sdram = unsafe {
-               core::slice::from_raw_parts_mut(_sdram_ptr, sdram_size / core::mem::size_of::<u16>())
-           };
+        let _sdram_ptr = Sdram::new(&mut delay);
+        /*
+               // SDRAM Test
+               let sdram_size = 8 * 1024 * 1024; // 8MiB
+               let sdram = unsafe {
+                   core::slice::from_raw_parts_mut(_sdram_ptr, sdram_size / core::mem::size_of::<u16>())
+               };
 
-           sdram.fill(0x0000);
+               sdram.fill(0x0000);
 
-           for n in 0..240 {
-               sdram[n + 20 * 240] = 0x1f;
-               sdram[n + 300 * 240] = 0x1f;
-           }
+               for n in 0..240 {
+                   sdram[n + 20 * 240] = 0x1f;
+                   sdram[n + 300 * 240] = 0x1f;
+               }
 
-           for n in 0..320 {
-               sdram[n * 240 + 20] = 0x1f;
-               sdram[n * 240 + 220] = 0x1f;
-           }
-    */
+               for n in 0..320 {
+                   sdram[n * 240 + 20] = 0x1f;
+                   sdram[n * 240 + 220] = 0x1f;
+               }
+        */
 
-    unsafe {
-        ALLOCATOR.init(
-            &mut HEAP as *const u8 as usize,
-            core::mem::size_of_val(&HEAP),
-        )
-    }
+        unsafe {
+            ALLOCATOR.init(
+                &mut HEAP as *const u8 as usize,
+                core::mem::size_of_val(&HEAP),
+            )
+        }
 
-    // Init LCD/LTDC Display
-    // GPIO Config
-    // LTDC_AF14
-    #[rustfmt::skip]
+        // Init LCD/LTDC Display
+        // GPIO Config
+        // LTDC_AF14
+        #[rustfmt::skip]
         let _ = ltdc_pins_af14!(
             // R2-R7
             gpio_c.pc10,
@@ -262,8 +246,8 @@ pub fn bsp_init() -> TouchScreen {
             gpio_f.pf10
         );
 
-    // LTDC_AF9
-    #[rustfmt::skip]
+        // LTDC_AF9
+        #[rustfmt::skip]
         let _ = ltdc_pins_af9!(
             gpio_b.pb0,     // R3
             gpio_b.pb1,     // R6
@@ -271,116 +255,130 @@ pub fn bsp_init() -> TouchScreen {
             gpio_g.pg12     // B4
         );
 
-    // SPI Config
-    // ILI931 LCD IO init
-    // GPIO init
-    // GPIOD is already enabled
-    // LCD RDX PD12
-    // LCD WRX PD 13
-    // LCD NCS PC2
+        // SPI Config
+        // ILI931 LCD IO init
+        // GPIO init
+        // GPIOD is already enabled
+        // LCD RDX PD12
+        // LCD WRX PD 13
+        // LCD NCS PC2
 
-    // LCD SPI init
-    /* SPI baudrate is set to 5.6 MHz (PCLK2/SPI_BaudRatePrescaler = 84/16 = 5.25 MHz)
-       to verify these constraints:
-       - ILI9341 LCD SPI interface max baudrate is 10MHz for write and 6.66MHz for read
-       - l3gd20 SPI interface max baudrate is 10MHz for write/read
-       - PCLK2 frequency is set to 84 MHz
-    */
-    // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MOSI PF9
+        // LCD SPI init
+        /* SPI baudrate is set to 5.6 MHz (PCLK2/SPI_BaudRatePrescaler = 84/16 = 5.25 MHz)
+           to verify these constraints:
+           - ILI9341 LCD SPI interface max baudrate is 10MHz for write and 6.66MHz for read
+           - l3gd20 SPI interface max baudrate is 10MHz for write/read
+           - PCLK2 frequency is set to 84 MHz
+        */
+        // GPIO SPI5 CLK PF7, SPI5 MISO PF8, SPI5 MOSI PF9
 
-    let mut lcd_rdx = gpio_d.pd12.into_push_pull_output().speed(Speed::VeryHigh);
-    let mut lcd_wrx = gpio_d.pd13.into_push_pull_output().speed(Speed::VeryHigh);
-    let mut lcd_ncs = gpio_c.pc2.into_push_pull_output().speed(Speed::VeryHigh);
+        let mut lcd_rdx = gpio_d.pd12.into_push_pull_output().speed(Speed::VeryHigh);
+        let mut lcd_wrx = gpio_d.pd13.into_push_pull_output().speed(Speed::VeryHigh);
+        let mut lcd_ncs = gpio_c.pc2.into_push_pull_output().speed(Speed::VeryHigh);
 
-    lcd_rdx.set_high();
-    lcd_wrx.set_high();
-    lcd_ncs.set_high();
+        lcd_rdx.set_high();
+        lcd_wrx.set_high();
+        lcd_ncs.set_high();
 
-    let lcd_clk = gpio_f
-        .pf7
-        .into_push_pull_output()
-        .speed(Speed::VeryHigh)
-        .into_alternate::<5>()
-        .internal_pull_up(false);
+        let lcd_clk = gpio_f
+            .pf7
+            .into_push_pull_output()
+            .speed(Speed::VeryHigh)
+            .into_alternate::<5>()
+            .internal_pull_up(false);
 
-    let lcd_miso = gpio_f
-        .pf8
-        .into_push_pull_output()
-        .speed(Speed::VeryHigh)
-        .into_alternate::<5>()
-        .internal_pull_up(false);
+        let lcd_miso = gpio_f
+            .pf8
+            .into_push_pull_output()
+            .speed(Speed::VeryHigh)
+            .into_alternate::<5>()
+            .internal_pull_up(false);
 
-    let lcd_mosi = gpio_f
-        .pf9
-        .into_push_pull_output()
-        .speed(Speed::VeryHigh)
-        .into_alternate::<5>()
-        .internal_pull_up(false);
+        let lcd_mosi = gpio_f
+            .pf9
+            .into_push_pull_output()
+            .speed(Speed::VeryHigh)
+            .into_alternate::<5>()
+            .internal_pull_up(false);
 
-    let lcd_mode = SpiMode {
-        polarity: Polarity::IdleLow,
-        phase: Phase::CaptureOnFirstTransition,
-    };
-    let lcd_spi = dp
-        .SPI5
-        .spi((lcd_clk, lcd_miso, lcd_mosi), lcd_mode, 2.MHz(), &clocks);
+        let lcd_mode = SpiMode {
+            polarity: Polarity::IdleLow,
+            phase: Phase::CaptureOnFirstTransition,
+        };
+        let lcd_spi = dp
+            .SPI5
+            .spi((lcd_clk, lcd_miso, lcd_mosi), lcd_mode, 2.MHz(), &clocks);
 
-    let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
+        let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
 
-    let mut ltdc_dev = Ltdc { spi_dev: lcd_spi };
-    let _ = Ltdc::new(
-        &mut ltdc_dev,
-        fb1.as_ptr() as *const u16,
-        fb2.as_ptr() as *const u16,
-        &mut delay,
-    );
+        let mut ltdc_dev = Ltdc { spi_dev: lcd_spi };
+        let _ = Ltdc::new(
+            &mut ltdc_dev,
+            fb1.as_ptr() as *const u16,
+            fb2.as_ptr() as *const u16,
+            &mut delay,
+        );
 
-    // Init Touch Screen
-    let i2c3_scl = gpio_a.pa8.into_alternate_open_drain::<4>();
-    let i2c3_sda = gpio_c.pc9.into_alternate_open_drain::<4>();
+        // Init Touch Screen
+        let i2c3_scl = gpio_a.pa8.into_alternate_open_drain::<4>();
+        let i2c3_sda = gpio_c.pc9.into_alternate_open_drain::<4>();
 
-    let i2c3_dev = dp.I2C3.i2c(
-        (i2c3_scl, i2c3_sda),
-        Mode::Standard {
-            frequency: 100.kHz(),
-        },
-        &clocks,
-    );
+        let i2c3_dev = dp.I2C3.i2c(
+            (i2c3_scl, i2c3_sda),
+            Mode::Standard {
+                frequency: 100.kHz(),
+            },
+            &clocks,
+        );
 
-    // LEDsinit
-    let _led_green = gpio_g.pg13.into_push_pull_output();
-    let _led_red = gpio_g.pg14.into_push_pull_output();
+        let mut ts_dev = TouchScreen { i2c_dev: i2c3_dev };
+        let _ = TouchScreen::init(&mut ts_dev, &mut delay);
 
-    // TouchScreen init
-    let mut ts_dev = TouchScreen { i2c_dev: i2c3_dev };
-    let _ = TouchScreen::init(&mut ts_dev, &mut delay);
+        // LEDsinit
+        let _led_green = gpio_g.pg13.into_push_pull_output();
+        let _led_red = gpio_g.pg14.into_push_pull_output();
 
-    // Init RNG
+        // Init RNG
 
-    // Return TouchScreen
-    return ts_dev;
+        StmBackendInner { delay, ts_dev }
+    }
+}
+
+pub struct StmBackend {
+    window: RefCell<Option<Rc<slint::platform::software_renderer::MinimalSoftwareWindow>>>,
+    inner: RefCell<Option<StmBackendInner>>,
+}
+
+impl Default for StmBackend {
+    fn default() -> Self {
+        Self {
+            window: RefCell::new(None),
+            inner: RefCell::new(None),
+        }
+    }
 }
 
 impl slint::platform::Platform for StmBackend {
     fn create_window_adapter(
         &self,
     ) -> Result<Rc<dyn slint::platform::WindowAdapter>, slint::PlatformError> {
-        Ok(self.window.clone())
+        if self.window.borrow().as_ref().is_none() {
+            let window = slint::platform::software_renderer::MinimalSoftwareWindow::new(
+                slint::platform::software_renderer::RepaintBufferType::SwappedBuffers,
+            );
+            self.window.replace(Some(window.clone()));
+            Ok(window)
+        } else {
+            Ok(self.window.take().unwrap().clone())
+        }
     }
 
     fn run_event_loop(&self) -> Result<(), slint::PlatformError> {
-        /*
-        let inner = &mut *self.inner.borrow_mut();
+        let mut inner = self.inner.take().unwrap();
 
-        // Init TouchScreen
-
-        // Safety: The Refcell at the beginning of `run_event_loop` prevents re-entrancy and thus multiple mutable references to FB1/FB2.
         let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
-
         let mut work_fb: &mut [TargetPixel] = fb2;
-
         let mut display_refreshed = false;
-
         let mut last_touch = None;
 
         self.window
@@ -463,15 +461,9 @@ impl slint::platform::Platform for StmBackend {
             }
             inner.delay.delay_us(5_000_u16);
         }
-        */
-        loop {}
     }
 
     fn duration_since_start(&self) -> core::time::Duration {
-        // let mut tmp: u64 = 0;
-        // cortex_m::interrupt::free(|cs| tmp = G_COUNTMS.borrow(cs).get());
-        // core::time::Duration::from_millis(tmp)
-
         core::time::Duration::from_millis(lilos::time::TickTime::now().into())
     }
 
@@ -481,27 +473,11 @@ impl slint::platform::Platform for StmBackend {
     }
 }
 
-// Timer Interrupt
-#[interrupt]
-fn TIM2() {
-    cortex_m::interrupt::free(|cs| {
-        G_COUNTMS.borrow(cs).set(G_COUNTMS.borrow(cs).get() + 1);
-
-        let mut timer = G_TIM.borrow(cs).borrow_mut();
-        timer
-            .as_mut()
-            .unwrap()
-            .clear_flags(stm32f4xx_hal::timer::Flag::Update);
-    });
-}
-
-pub async fn ui_task() {
-    let mut ts_dev = bsp_init();
+pub async fn slint_async_run_event_loop(mut inner: StmBackendInner) {
+    let backend = StmBackend::default();
 
     let window = MinimalSoftwareWindow::new(Default::default());
-    let backend = StmBackend {
-        window: window.clone(),
-    };
+    backend.window.replace(Some(window.clone()));
     slint::platform::set_platform(Box::new(backend)).unwrap();
 
     let ui = MainWindow::new();
@@ -510,6 +486,7 @@ pub async fn ui_task() {
     let (fb1, fb2) = unsafe { (&mut FB1, &mut FB2) };
     let mut work_fb: &mut [TargetPixel] = fb2;
     let mut display_refreshed = false;
+
     let mut last_touch = None;
 
     window.set_size(slint::PhysicalSize::new(
@@ -552,7 +529,7 @@ pub async fn ui_task() {
         }
 
         // handle touch event
-        let ts_data_xyz = ts_dev.get_xyz();
+        let ts_data_xyz = inner.ts_dev.get_xyz();
         let _x = (ts_data_xyz >> 20) & 0x00000FFF;
         let _y = (ts_data_xyz >> 8) & 0x00000FFF;
         let z = ts_data_xyz & 0xff;
@@ -587,11 +564,6 @@ pub async fn ui_task() {
             }
         }
 
-        if let Some(timeout) = slint::platform::duration_until_next_timer_update() {
-            lilos::time::sleep_for(lilos::time::Millis(timeout.as_millis() as u64)).await;
-            info!("a valid timeout value: {}", timeout);
-        } else {
-            lilos::time::sleep_for(lilos::time::Millis(20)).await;
-        }
+        lilos::exec::yield_cpu().await;
     }
 }
