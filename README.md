@@ -34,6 +34,13 @@ ierturk@DESKTOP-JC8L4M1:~$ cargo run -release
 Or
 - It can be run through VSCode menus 
 ___
+### Added Nix Flakes and DirEnv Support
+Everything will be set by just typing following command
+```
+me@localhost:~$ nix develop
+```
+It needs to be installed `nix` package manager with enabled `nix-command` and `flake` support.
+___
 ### Conclusion
 This is the Slint Carousel Demo running on the F4 MCU   
 

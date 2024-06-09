@@ -1,7 +1,8 @@
 **/*.rs.bk
 .#*
 .gdb_history
-Cargo.lock
 target/
 
 .cargo-ok
+
+.direnv/

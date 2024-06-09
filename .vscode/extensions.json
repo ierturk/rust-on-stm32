@@ -5,6 +5,10 @@
 	"recommendations": [
 		"rust-lang.rust-analyzer",
 		"tamasfe.even-better-toml",
+		"jnoortheen.nix-ide",
+		"mkhl.direnv",
+		"probe-rs.probe-rs-debugger",
+		"Slint.slint"
 	],
 	// List of extensions recommended by VS Code that should not be recommended for users of this workspace.
 	"unwantedRecommendations": []
